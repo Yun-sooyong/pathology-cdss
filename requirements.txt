@@ -1,0 +1,10 @@
+Django==5.2.9          # LTS 버전 — 더 오래 보안 패치 지원됨
+djangorestframework==3.16.1
+django-cors-headers==4.6.0
+gunicorn==23.0.0
+psycopg2-binary==2.9.10
+google-cloud-storage==2.19.0
+google-cloud-tasks==2.22.0
+python-dotenv==1.0.1
+whitenoise==6.8.2
+Pillow==11.0.0          # ← 추가 권장 (이미지 업로드 처리 필수)
