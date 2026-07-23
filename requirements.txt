@@ -12,7 +12,7 @@ django-cors-headers==4.6.0          # React 프론트엔드 CORS 허용용
 gunicorn==23.0.0
 
 # ---- Cloud SQL (PostgreSQL) ----
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.12
 
 # ---- GCP 연동 ----
 google-cloud-storage==2.19.0        # 업로드 이미지 GCS 저장
