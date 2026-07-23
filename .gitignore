@@ -1,0 +1,57 @@
+# === Python (backend/, model-training/, worker/, serving/) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# === Node / React (frontend/) ===
+node_modules/
+dist/
+build/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === 환경변수 / 비밀정보 (전체 공통) ===
+.env
+.env.*
+!.env.example
+
+# === 모델 가중치 (GCS에만 저장, Git 커밋 금지) ===
+*.onnx
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.safetensors
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === 로컬 도구 바이너리 ===
+cloud-sql-proxy.exe
+
+# === 테스트 / 커버리지 ===
+.coverage
+htmlcov/
+.pytest_cache/
