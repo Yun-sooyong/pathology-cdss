@@ -85,6 +85,9 @@
 
 ## ⚠️ 아직 placeholder (실제 값으로 교체 필요)
 
+- `medgemma_report.load_pipeline()` — 현재 BF16 그대로 로드. VRAM이 부족한 배포 환경(예: RTX 3070 8GB)에서는
+  함수 안 bitsandbytes int8 양자화 블록의 주석만 해제하면 바로 적용됨 (`requirements.txt`의 `bitsandbytes`도 주석 해제).
+  **켠 뒤에는 sTIL 할루시네이션 재검증 필수** — 양자화로 정밀도가 바뀌면 생성 결과가 미세하게 달라질 수 있음.
 - `worker.py`의 `CONFORMAL_Q` — 모델별 conformal 보정상수 q가 지금 더미값(1.64).
   실제로는 calibration 세트로 모델마다 계산해야 함. (전처리 때 만든 CV+ fold 로직 재사용)
 - `findings` 프롬프트 품질 — 아직 입력값 재진술 경향. 튜닝 예정.
