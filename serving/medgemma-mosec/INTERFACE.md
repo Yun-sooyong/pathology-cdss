@@ -70,10 +70,18 @@
 
 ## 🔴 윤수용 (인프라) 에게 요청
 
-1. **Job 테이블 쓰기 방법**: Django API 경유 vs Cloud SQL 직접 → `worker.run_job()`의 TODO 채우려면 필요
-2. **워커 트리거 페이로드**: Cloud Tasks가 워커를 부를 때 넘기는 필드 (`job_id`, `model_name`, 세그결과 경로 등)
+1. ✅ **확정 (2026-07-24)** — **Job 테이블 쓰기 방법**: **Option B** (워커는 DB 모름, Django API에 HTTP PATCH).
+   `worker.update_job(job_id, **fields)` 구현 완료 — `requests.patch(f"{DJANGO_API_BASE}/jobs/{job_id}/", json=fields)`.
+   `DJANGO_API_BASE`는 배포 시 실제 Django API 주소로 환경변수 주입 필요 (현재 플레이스홀더).
+2. ✅ **확정 (2026-07-24)** — **mc_stack/seg_image 전달 방식**: **Option B (GCS 경로)**.
+   mc_stack이 실측 약 146MB라 Cloud Tasks 페이로드 100KB 제한상 데이터 직송은 불가능 — 페이로드엔
+   `mc_stack_path`/`gcs_result_path`로 `gs://...` 문자열만 오고, 워커가 직접 다운로드.
+   `worker.load_mc_stack()` / `worker.load_seg_image()` 구현 완료, `run_job()`에 연결 완료.
+   **남은 것:** 정확한 페이로드 필드명(현재 `job_id`/`model_name`/`mc_stack_path`/`gcs_result_path`로 가정 중)과
+   버킷 경로 규칙(`gs://버킷/jobs/{job_id}/...` 등)은 여전히 협의 필요.
 3. **MedGemma Docker**: 가중치를 빌드타임에 포함하는 구조(발표 16번) → Dockerfile 같이 검토
-4. **상태 전이**: 내가 계산 끝내면 `status="sTIL 완료"` → MedGemma 후 `status="완료"`로 업데이트하는 규약 확정
+4. ✅ **확정 (2026-07-24)** — **상태 전이**: `status="sTIL 완료"` → MedGemma 후 `status="완료"` 규약대로
+   `run_job()`에 두 번의 `update_job()` 호출로 구현 완료.
 
 ## ⚠️ 아직 placeholder (실제 값으로 교체 필요)
 
