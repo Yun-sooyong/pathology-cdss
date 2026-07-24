@@ -15,7 +15,34 @@ import json
 import re
 from typing import Optional
 
+MODEL_NAME = "google/medgemma-4b-it"
+
 DISCLAIMER = "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다."
+
+
+def load_pipeline(model_name: str = MODEL_NAME):
+    """MedGemma 파이프라인 로드 (Cloud Run Job 시작 시 1회 호출, 빌드타임에 가중치 포함).
+
+    현재는 BF16 그대로 로드. VRAM이 부족한 배포 환경(예: RTX 3070 8GB)에서는
+    아래 bitsandbytes int8 양자화 블록의 주석을 해제하면 바로 적용됨.
+    양자화 적용 후에는 sTIL 할루시네이션 재검증(medgemma_report.py 프롬프트 테스트)을
+    반드시 다시 돌릴 것 — 정밀도가 바뀌면 생성 결과가 미세하게 달라질 수 있음.
+    """
+    from transformers import pipeline
+
+    # ── bitsandbytes int8 양자화 (필요 시 아래 주석 해제) ───────────────────
+    # VRAM 절반(~4GB)으로 줄어듦. requirements.txt에 bitsandbytes 추가 필요.
+    #
+    # from transformers import BitsAndBytesConfig
+    # quant_config = BitsAndBytesConfig(load_in_8bit=True)
+    # return pipeline(
+    #     "image-text-to-text",
+    #     model=model_name,
+    #     model_kwargs={"quantization_config": quant_config},
+    #     device_map="auto",
+    # )
+
+    return pipeline("image-text-to-text", model=model_name, device_map="auto")
 
 SYSTEM_PROMPT = """당신은 유방암 병리를 판독하는 전문의입니다.
 주어진 세그멘테이션 이미지와 수치를 바탕으로 아래 JSON 형식으로만 답하세요.
