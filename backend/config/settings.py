@@ -131,9 +131,15 @@ else:
         }
     }
 
-# React 프론트엔드(개발 서버)에서 오는 요청만 허용
+# React 프론트엔드에서 오는 요청만 허용.
+# 브라우저는 localhost와 127.0.0.1을 다른 origin으로 보므로 둘 다 기본값에 넣는다.
+# 배포 시에는 env.yaml의 CORS_ALLOWED_ORIGINS에 실제 프론트 도메인을 추가한다.
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
+    o.strip()
+    for o in os.environ.get(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if o.strip()
 ]
 
 # ---- 업로드 ----
