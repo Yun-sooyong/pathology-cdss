@@ -4,13 +4,15 @@
 Usage: python scripts/smoke_test.py
 """
 import io
+import os
 
 import msgpack
 import numpy as np
 import requests
 from PIL import Image
 
-URL = "http://127.0.0.1:8000/inference"
+URL = os.environ.get("MOSEC_URL", "http://127.0.0.1:8000/inference")
+TOKEN = os.environ.get("MOSEC_TOKEN")  # Cloud Run 인증 테스트할 때만 설정
 
 
 def _fake_image_bytes(size=64):
@@ -25,7 +27,11 @@ def main():
     payload = {"job_id": "smoke-test-1", "image": _fake_image_bytes(), "model_name": "unet_v1"}
     body = msgpack.packb(payload, use_bin_type=True)
 
-    resp = requests.post(URL, data=body, headers={"Content-Type": "application/msgpack"})
+    headers = {"Content-Type": "application/msgpack"}
+    if TOKEN:
+        headers["Authorization"] = f"Bearer {TOKEN}"
+
+    resp = requests.post(URL, data=body, headers=headers)
     resp.raise_for_status()
     result = msgpack.unpackb(resp.content, raw=False)
 
