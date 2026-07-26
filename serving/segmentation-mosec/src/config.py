@@ -16,7 +16,7 @@ MODEL_DIR = os.environ.get("MODEL_DIR", "./weights")
 
 # 이미지 한 장당 MS Dropout을 몇 번 진행할 지
 # "25번 순차 추론"
-MC_MODEL_N = _int("MC_MODEL_N", 25)
+MC_DROPOUT_N = _int("MC_DROPOUT_N", 25)
 
 # 세그멘테이션 클래스 개수
 NUM_CLASSES = _int("NUM_CLASSES", 5)
@@ -36,6 +36,6 @@ CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
 
 # true면, 진짜 ONNX 파일이 있어도 무시하고 무조건 더미 모델을 씀
 # 로컬 개발/테스트할 때 "일부러 더미로 돌리고 싶을 때" 쓰는 스위치
-FORCE_DUMMY = _bool("FORECE_DUMMY", False)
+FORCE_DUMMY = _bool("FORCE_DUMMY", False)
 
 HTTP_PORT = _int("HTTP_PORT", 8000)

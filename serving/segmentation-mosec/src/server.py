@@ -61,7 +61,7 @@ class Inference(MsgpackMixin, Worker):
 
 def build_server() -> Server:
     server = Server()
-    server.append_worker(Preprocess, num=config.NUM_PREPROCESS_WORKERS)
+    server.append_worker(Preprocess, num=config.NUM_PREPROCESS_WOEKERS)
     inference_env = [{"CUDA_VISIBLE_DEVICES": config.CUDA_VISIBLE_DEVICES}] * config.NUM_INFERENCE_WORKERS
     server.append_worker(
         Inference,
