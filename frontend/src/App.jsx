@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { uploadImage } from './api';
+import { uploadBatch, getResult } from './api';
 import DashboardScreen from './screens/DashboardScreen';
 import UploadScreen from './screens/UploadScreen';
 import LoadingScreen from './screens/LoadingScreen';
@@ -10,6 +10,7 @@ import DetailScreen from './screens/DetailScreen';
 function App() {
   const [screen, setScreen] = useState('dashboard');
   const [batchFiles, setBatchFiles] = useState([]);
+  const [batchId, setBatchId] = useState(null);
   const [completedResults, setCompletedResults] = useState([]);
 
   function handleNewAnalysis() {
@@ -26,15 +27,11 @@ function App() {
 
   async function handleAnalyze(files, model) {
     try {
-      // 파일 개수만큼 /upload를 반복 호출해서 각각 job_id를 받아온다
-      const uploaded = await Promise.all(
-        files.map(async (f) => {
-          const result = await uploadImage(f.file, model);
-          console.log(`${f.name} 업로드 완료, job_id:`, result.job_id);
-          return { name: f.name, jobId: result.job_id };
-        })
-      );
-      setBatchFiles(uploaded);
+      // 파일 전부를 한 번에 담아서 업로드 → batch_id 하나를 받는다
+      const result = await uploadBatch(files, model);
+      console.log('업로드 완료, batch_id:', result.batch_id);
+      setBatchFiles(files);
+      setBatchId(result.batch_id);
       setScreen('loading');
     } catch (err) {
       console.error(err);
@@ -81,7 +78,7 @@ function App() {
 
       {screen === 'loading' && (
         <LoadingScreen
-          files={batchFiles}
+          batchId={batchId}
           onCancelAll={handleCancelAll}
           onComplete={handleComplete}
           onViewErrors={handleViewErrors}
