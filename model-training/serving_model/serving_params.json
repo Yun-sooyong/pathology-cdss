@@ -1,0 +1,46 @@
+{
+ "model": "attention_unet_v1.onnx",
+ "arch": "attention_unet_resnet34",
+ "confirmed_date": "2026-07-26",
+ "loss_type": "wce20",
+ "immune_weight": 2.0,
+ "serving_fold": 4,
+ "best_epoch": 12,
+ "dropout_p": 0.2,
+ "seed": 0,
+ "epochs": 30,
+ "checkpoint": "checkpoints/attnunet_wce20_fold4_best.pth",
+ "conformal": {
+  "method": "CV+",
+  "normalized": false,
+  "alpha": 0.10,
+  "q": 19.629,
+  "interval": "til_pred +/- q"
+ },
+ "test45": {
+  "stil_mae": 7.152,
+  "coverage": 0.956,
+  "coverage_str": "43/45",
+  "cutoff_misclass": {"10": 4, "20": 5, "50": 5},
+  "under_sum": 125.0,
+  "over_sum": 197.0
+ },
+ "pooled_oof_n106": {
+  "stil_mae": 8.524,
+  "baseline_ce_mae": 9.883
+ },
+ "onnx_export": {
+  "opset": 18,
+  "training_mode": "PRESERVE",
+  "do_constant_folding": true,
+  "random_uniform_like": 4,
+  "dropout_nodes": 0,
+  "output_shape": ["batch", 5, 512, 512],
+  "backup": "attention_unet_v1.onnx.bak"
+ },
+ "verification": {
+  "pytest_onnx_mc_dropout": "7/7",
+  "pth_vs_onnx_max_abs_err": 3.13e-06,
+  "ort_3level_batch_std": 0.341
+ }
+}
