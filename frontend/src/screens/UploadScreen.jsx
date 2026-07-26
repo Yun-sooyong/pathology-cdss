@@ -11,7 +11,7 @@ function estimateTime(fileCount) {
   return min > 0 ? `약 ${min}분 ${sec}초` : `약 ${sec}초`;
 }
 
-export default function UploadScreen({ onAnalyze }) {
+export default function UploadScreen({ onAnalyze, isUploading, uploadProgress }) {
   const [files, setFiles] = useState([]); // 실제 업로드 연동부터는 빈 상태로 시작 (mock 예시엔 진짜 File 객체가 없음)
   const [model, setModel] = useState('unet_v1');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -129,6 +129,28 @@ export default function UploadScreen({ onAnalyze }) {
         ))}
       </div>
 
+      {isUploading && (
+        <div className="card" style={{ marginTop: 16, background: 'var(--bg)' }}>
+          <div className="card-title" style={{ marginBottom: 8 }}>업로드 중...</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {files.map((f) => {
+              const percent = uploadProgress?.[f.name] ?? 0;
+              return (
+                <div key={f.name}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                    <span>{f.name}</span>
+                    <span style={{ color: 'var(--ink-soft)' }}>{percent}%</span>
+                  </div>
+                  <div style={{ background: 'var(--border)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--hema)', height: '100%', width: `${percent}%`, transition: 'width 0.2s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {warningsAndErrors.length > 0 && (
         <div className="card" style={{ marginTop: 16, background: 'var(--bg)' }}>
           <div className="card-title" style={{ marginBottom: 8 }}>
@@ -167,9 +189,9 @@ export default function UploadScreen({ onAnalyze }) {
         <button
           className="btn btn-primary"
           onClick={() => onAnalyze(files, model)}
-          disabled={files.length === 0 || hasBlockingError}
+          disabled={files.length === 0 || hasBlockingError || isUploading}
         >
-          {hasBlockingError ? '분석 시작 (오류 파일 제거 필요)' : '분석 시작'}
+          {isUploading ? '업로드 중...' : hasBlockingError ? '분석 시작 (오류 파일 제거 필요)' : '분석 시작'}
         </button>
       </div>
     </div>
