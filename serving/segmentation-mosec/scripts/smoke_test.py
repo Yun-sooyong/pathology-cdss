@@ -5,6 +5,7 @@ Usage: python scripts/smoke_test.py
 """
 import io
 import os
+import time
 
 import msgpack
 import numpy as np
@@ -12,27 +13,30 @@ import requests
 from PIL import Image
 
 URL = os.environ.get("MOSEC_URL", "http://127.0.0.1:8000/inference")
-TOKEN = os.environ.get("MOSEC_TOKEN")  # Cloud Run 인증 테스트할 때만 설정
+TOKEN = os.environ.get("MOSEC_TOKEN")
+MODEL_NAME = os.environ.get("MOSEC_MODEL_NAME", "unet_v1")
+IMAGE_SIZE = int(os.environ.get("MOSEC_IMAGE_SIZE", "64"))
 
 
-def _fake_image_bytes(size=64):
+def _fake_image_bytes(size=IMAGE_SIZE):
     arr = (np.random.rand(size, size, 3) * 255).astype(np.uint8)
     img = Image.fromarray(arr)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-
 def main():
-    payload = {"job_id": "smoke-test-1", "image": _fake_image_bytes(), "model_name": "unet_v1"}
+    payload = {"job_id": "smoke-test-1", "image": _fake_image_bytes(), "model_name": MODEL_NAME}
     body = msgpack.packb(payload, use_bin_type=True)
 
     headers = {"Content-Type": "application/msgpack"}
     if TOKEN:
         headers["Authorization"] = f"Bearer {TOKEN}"
 
+    t0 = time.perf_counter()
     resp = requests.post(URL, data=body, headers=headers)
     resp.raise_for_status()
+    elapsed = time.perf_counter() - t0
     result = msgpack.unpackb(resp.content, raw=False)
 
     print("job_id:", result["job_id"])
@@ -41,6 +45,7 @@ def main():
     print("height/width:", result["height"], result["width"])
     print("num_classes:", result["num_classes"])
     print("masks payload bytes:", len(result["masks"]))
+    print(f"elapsed: {elapsed:.2f}s")
 
 
 if __name__ == "__main__":
