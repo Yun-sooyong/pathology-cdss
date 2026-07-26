@@ -39,6 +39,33 @@ yarn-error.log*
 *.ckpt
 *.safetensors
 
+# === 대용량 학습 데이터 (BCSS, 약 28GB — Git 커밋 금지) ===
+# 실제 이미지/마스크 .npy 와 raw 파일만 제외하고, 작은 split json 은 커밋한다.
+# (data/processed/split_info.json, cv_folds.json 은 재현에 필수 → 커밋 대상)
+model-training/data/processed/train/
+model-training/data/processed/calibration/
+model-training/data/processed/test/
+model-training/data/raw
+model-training/data/raw.zip
+# MC 예측 산출물(.npy)
+model-training/outputs/preds/
+
+# === 체크포인트 (가중치는 *.pth 로도 제외되나 폴더째 명시) ===
+model-training/checkpoints/
+
+# === 백업 파일 (attention_unet_v1.onnx.bak 등 — *.onnx 는 .bak 을 못 잡음) ===
+*.bak
+
+# === 실험/진단 잔재 (재현 불필요, 산출 수치는 serving_params 에 보존) ===
+model-training/results/screen/
+model-training/results/diag_*.json
+
+# === 임시 작업 폴더 ===
+scratchpad/
+sandbox/
+
+# serving_model: onnx 가중치만 제외(*.onnx 규칙), 규격 문서(SERVING_PARAMS.md, serving_params.json)는 커밋
+
 # === IDE ===
 .vscode/
 .idea/
