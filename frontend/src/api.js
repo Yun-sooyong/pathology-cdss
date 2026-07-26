@@ -1,12 +1,14 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// 이미지 한 장 업로드 → { job_id } 반환
-export async function uploadImage(file, model) {
+// 파일 여러 장을 한 번에 업로드 → { batch_id } 반환
+export async function uploadBatch(files, model) {
   const formData = new FormData();
-  formData.append('image', file);
+  files.forEach((f) => {
+    formData.append('images', f.file); // 같은 이름('images')으로 여러 번 append하면 서버는 배열로 받음
+  });
   formData.append('model_name', model);
 
-  const response = await fetch(`${BASE_URL}/upload`, {
+  const response = await fetch(`${BASE_URL}/api/upload`, {
     method: 'POST',
     body: formData,
   });
@@ -18,9 +20,9 @@ export async function uploadImage(file, model) {
   return response.json();
 }
 
-// job_id로 현재 상태/결과 조회
-export async function getResult(jobId) {
-  const response = await fetch(`${BASE_URL}/result/${jobId}`);
+// batch_id로 현재 상태/결과 조회
+export async function getResult(batchId) {
+  const response = await fetch(`${BASE_URL}/api/result/${batchId}`);
 
   if (!response.ok) {
     throw new Error(`결과 조회 실패 (상태 코드 ${response.status})`);
