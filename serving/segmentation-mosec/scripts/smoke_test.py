@@ -13,7 +13,7 @@ from PIL import Image
 URL = "http://127.0.0.1:8000/inference"
 
 
-def _fake_image_bytes(size=32):
+def _fake_image_bytes(size=64):
     arr = (np.random.rand(size, size, 3) * 255).astype(np.uint8)
     img = Image.fromarray(arr)
     buf = io.BytesIO()
