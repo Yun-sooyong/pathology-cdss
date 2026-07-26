@@ -12,6 +12,8 @@ Response (msgpack body):
      "height": <원본 이미지 높이>, "width": <원본 이미지 너비>,
      "num_classes": 5, "masks": <npz bytes>}
 """
+import os
+import sys
 from typing import List, Union
 
 from mosec import Server, Worker, get_logger
@@ -97,4 +99,11 @@ def build_server() -> Server:
 
 
 if __name__ == "__main__":
+    # Cloud Run은 매 배포마다 PORT 환경변수로 "이 포트에서 응답해"라고 알려주고
+    # 그 포트로 헬스체크를 보낸다 (기본 8080). 로컬 개발/Docker에서는 이 값이
+    # 없으니 config.HTTP_PORT(기본 8000)로 그대로 폴백한다.
+    port = os.environ.get("PORT", str(config.HTTP_PORT))
+    if "--port" not in sys.argv:
+        sys.argv += ["--port", port]
+
     build_server().run()
