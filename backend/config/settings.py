@@ -143,8 +143,13 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # ---- 업로드 ----
-# serializers.py의 이미지 용량 검증에서 사용
-MAX_UPLOAD_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "50"))
+# (구) 서버 경유 업로드에서 쓰는 이미지 용량 상한.
+# 실측 병리 이미지는 최대 141MB지만, Cloud Run 요청 제한(32MB)이 먼저 걸리므로
+# 큰 파일은 서명 URL 방식(POST /api/batches)으로 GCS에 직접 올린다.
+MAX_UPLOAD_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "200"))
+
+# 서명 업로드 URL 유효시간. 141MB 파일 업로드 시간을 감안해 넉넉히 잡는다.
+SIGNED_URL_EXPIRE_MINUTES = int(os.environ.get("SIGNED_URL_EXPIRE_MINUTES", "60"))
 
 # ---- GCP: 스토리지 ----
 # 업로드 이미지가 저장될 GCS 버킷과 경로 접두어 (가짜 모드에서도 prefix는 사용)
@@ -155,8 +160,14 @@ GCS_UPLOAD_PREFIX = os.environ.get("GCS_UPLOAD_PREFIX", "uploads")
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 CLOUD_TASKS_LOCATION = os.environ.get("CLOUD_TASKS_LOCATION")
 CLOUD_TASKS_QUEUE = os.environ.get("CLOUD_TASKS_QUEUE")
-CLOUD_TASKS_INVOKER_SA = os.environ.get("CLOUD_TASKS_INVOKER_SA", "")  # 워커가 인증 필요할 때만
-WORKER_URL = os.environ.get("WORKER_URL")  # 담당자 E의 워커 서비스 URL
+# Cloud Tasks가 Cloud Run Admin API를 호출할 때 쓸 서비스 계정.
+# 이 SA에 run.jobs.runWithOverrides 권한이 있어야 Job 실행이 가능하다.
+CLOUD_TASKS_INVOKER_SA = os.environ.get("CLOUD_TASKS_INVOKER_SA", "")
+
+# ---- 워커 (Cloud Run Job) ----
+# 워커는 HTTP 서버가 아닌 Job이라, 이름/리전으로 :run 엔드포인트를 조립해 트리거한다.
+WORKER_JOB_NAME = os.environ.get("WORKER_JOB_NAME", "cdss-worker")
+WORKER_JOB_REGION = os.environ.get("WORKER_JOB_REGION", "asia-northeast3")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

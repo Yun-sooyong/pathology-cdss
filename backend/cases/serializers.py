@@ -25,6 +25,28 @@ class BatchCreateSerializer(serializers.Serializer):
         return value
 
 
+class UploadFileSerializer(serializers.Serializer):
+    """서명 URL을 발급받을 파일 하나의 정보."""
+
+    filename = serializers.CharField(max_length=255)
+    # 브라우저가 PUT할 때 보낼 Content-Type. 서명에 포함되므로 값이 일치해야 한다.
+    content_type = serializers.CharField(max_length=100, default="application/octet-stream")
+
+
+class BatchInitSerializer(serializers.Serializer):
+    """POST /api/batches 요청 검증 — 파일은 받지 않고 목록만 받는다.
+
+    실제 파일은 발급된 서명 URL로 GCS에 직접 업로드된다(Cloud Run 32MB 제한 회피).
+    """
+
+    model_name = serializers.ChoiceField(choices=Job.MODEL_CHOICES)
+    files = serializers.ListField(
+        child=UploadFileSerializer(),
+        min_length=1,
+        max_length=15,  # 한 배치당 1~15장
+    )
+
+
 class JobListItemSerializer(serializers.ModelSerializer):
     """Batch 안의 '리스트 항목'용 — 목록 표시에 필요한 최소 정보만 (요구사항 3)."""
 

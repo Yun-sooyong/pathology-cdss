@@ -19,7 +19,10 @@ def _get_client() -> tasks_v2.CloudTasksClient:
 
 
 def enqueue_inference(job_id: str, gcs_image_path: str, model_name: str) -> str:
-    """워커(담당자 E)를 호출하는 Cloud Tasks 작업을 등록한다.
+    """워커(Cloud Run Job)를 실행시키는 Cloud Tasks 작업을 등록한다.
+
+    워커는 HTTP 서버가 아니라 Cloud Run Job(스크립트)이므로,
+    Cloud Tasks가 Cloud Run Admin API의 :run 을 호출해 실행을 트리거한다.
 
     Returns:
         생성된 task의 전체 이름
@@ -39,29 +42,44 @@ def enqueue_inference(job_id: str, gcs_image_path: str, model_name: str) -> str:
         settings.CLOUD_TASKS_QUEUE,
     )
 
-    # 워커에게 전달할 데이터(어떤 작업을, 어떤 이미지로, 어떤 모델로 돌릴지)
-    payload = {
-        "job_id": str(job_id),
-        "gcs_image_path": gcs_image_path,
-        "model_name": model_name,
+    # 워커는 Cloud Run "Job"이라 HTTP 서버가 없다. 대신 Cloud Run Admin API의
+    # :run 엔드포인트를 호출해서 Job 실행을 트리거한다.
+    #   POST https://run.googleapis.com/v2/projects/{P}/locations/{R}/jobs/{J}:run
+    run_url = (
+        f"https://run.googleapis.com/v2/projects/{settings.GCP_PROJECT_ID}"
+        f"/locations/{settings.WORKER_JOB_REGION}/jobs/{settings.WORKER_JOB_NAME}:run"
+    )
+
+    # 실행 파라미터는 컨테이너 환경변수로 넘긴다(Job은 요청 body를 못 받으므로).
+    # 워커 스크립트는 os.environ에서 이 값들을 읽으면 된다.
+    body = {
+        "overrides": {
+            "containerOverrides": [
+                {
+                    "env": [
+                        {"name": "JOB_ID", "value": str(job_id)},
+                        {"name": "GCS_IMAGE_PATH", "value": gcs_image_path},
+                        {"name": "MODEL_NAME", "value": model_name},
+                    ]
+                }
+            ]
+        }
     }
 
-    # Cloud Tasks가 나중에 워커 URL로 이 HTTP POST 요청을 대신 보내 준다.
     task = {
         "http_request": {
             "http_method": tasks_v2.HttpMethod.POST,
-            "url": settings.WORKER_URL,
+            "url": run_url,
             "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(payload).encode(),  # JSON을 바이트로 변환해 실어 보냄
+            "body": json.dumps(body).encode(),
+            # ⚠️ Google API(*.googleapis.com) 호출은 OIDC ID 토큰이 아니라
+            #    OAuth 액세스 토큰이어야 한다. oidc_token을 쓰면 401이 난다.
+            "oauth_token": {
+                "service_account_email": settings.CLOUD_TASKS_INVOKER_SA,
+                "scope": "https://www.googleapis.com/auth/cloud-platform",
+            },
         }
     }
-
-    # 워커가 인증이 필요한 Cloud Run 서비스일 경우 OIDC 토큰을 붙인다.
-    if settings.CLOUD_TASKS_INVOKER_SA:
-        task["http_request"]["oidc_token"] = {
-            "service_account_email": settings.CLOUD_TASKS_INVOKER_SA,
-            "audience": settings.WORKER_URL,
-        }
 
     # 큐에 작업을 실제로 등록한다. 등록만 하면 실행은 Cloud Tasks가 알아서 처리.
     response = client.create_task(request={"parent": parent, "task": task})
