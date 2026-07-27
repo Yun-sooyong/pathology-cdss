@@ -21,7 +21,7 @@ from mosec.errors import ValidationError
 from mosec.mixin import MsgpackMixin
 
 from . import config
-from .inference import decode_and_stain_normalize, pack_masks, run_mc_dropout_tiled
+from .inference import decode_and_stain_normalize, download_gcs_bytes, pack_masks, run_mc_dropout_tiled
 from .model_registry import ModelRegistry
 
 logger = get_logger()
@@ -33,12 +33,17 @@ class Preprocess(MsgpackMixin, Worker):
     def forward(self, data: dict) -> dict:
         if not isinstance(data, dict):
             raise ValidationError(f"expected a msgpack map, got {type(data)}")
-        for field in ("job_id", "image"):
+        for field in ("job_id", "gcs_image_path"):
             if field not in data:
                 raise ValidationError(f"missing required field: {field}")
 
         try:
-            rgb_hwc = decode_and_stain_normalize(data["image"])
+            image_bytes = download_gcs_bytes(data["gcs_image_path"])
+        except Exception as exc:  # noqa: BLE001
+            raise ValidationError(f"GCS에서 이미지를 읽지 못함: {exc}") from exc
+
+        try:
+            rgb_hwc = decode_and_stain_normalize(image_bytes)
         except Exception as exc:  # noqa: BLE001
             raise ValidationError(f"could not decode image: {exc}") from exc
 
