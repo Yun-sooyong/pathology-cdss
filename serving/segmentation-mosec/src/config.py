@@ -18,8 +18,8 @@ def _float(name: str, default: float) -> float:
 MODEL_DIR = os.environ.get("MODEL_DIR", "./weights")
 
 # 이미지 한 장당 MS Dropout을 몇 번 진행할 지
-# "25번 순차 추론"
-MC_DROPOUT_N = _int("MC_DROPOUT_N", 25)
+# "20번 순차 추론"
+MC_DROPOUT_N = _int("MC_DROPOUT_N", 20)
 
 # 세그멘테이션 클래스 개수
 NUM_CLASSES = _int("NUM_CLASSES", 5)
