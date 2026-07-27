@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements.txt .
 # Swap in the GPU build of onnxruntime for the container image; the plain
 # `onnxruntime` in requirements.txt is what local/CPU-only dev and CI use.
-RUN pip3 install --no-cache-dir -r requirements.txt \
+RUN pip3 install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu124 -r requirements.txt \
     && pip3 uninstall -y onnxruntime \
     && pip3 install --no-cache-dir onnxruntime-gpu>=1.17
 COPY src ./src
