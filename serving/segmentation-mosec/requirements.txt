@@ -5,3 +5,4 @@ onnxruntime>=1.17
 msgpack>=1.0
 transformers
 accelerate
+google-cloud-storage

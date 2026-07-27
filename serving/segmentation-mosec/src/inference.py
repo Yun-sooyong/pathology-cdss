@@ -269,3 +269,26 @@ def _tile_starts(size: int, patch: int, stride: int):
     if starts[-1] != size - patch:
         starts.append(size - patch)
     return starts
+
+from google.cloud import storage
+
+_gcs_client = None
+
+
+def _get_gcs_client():
+    global _gcs_client
+    if _gcs_client is None:
+        _gcs_client = storage.Client()
+    return _gcs_client
+
+
+def download_gcs_bytes(gcs_path: str) -> bytes:
+    """gs://bucket/key 형태의 경로에서 원본 이미지 바이트를 읽어온다."""
+    if not gcs_path.startswith("gs://"):
+        raise ValueError(f"gcs_image_path는 gs://로 시작해야 함: {gcs_path!r}")
+    bucket_name, _, blob_name = gcs_path[len("gs://"):].partition("/")
+    if not bucket_name or not blob_name:
+        raise ValueError(f"gcs_image_path 형식이 잘못됨: {gcs_path!r}")
+    client = _get_gcs_client()
+    blob = client.bucket(bucket_name).blob(blob_name)
+    return blob.download_as_bytes()
