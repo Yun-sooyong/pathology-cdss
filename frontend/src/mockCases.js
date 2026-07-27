@@ -1,0 +1,48 @@
+// 지금은 mock. 실제 "전체 케이스 목록 조회 API"가 생기면 이 파일 대신 API 호출로 교체.
+export const MOCK_CASES = [
+  {
+    id: "C-0233",
+    uploadedAt: "2026-07-21 09:33",
+    status: "완료",
+    stil: 47,
+    abstain: true,
+    abstainReason: "예측구간 폭 과다",
+    hospital: "서울성모병원",
+  },
+  {
+    id: "C-0232",
+    uploadedAt: "2026-07-21 09:12",
+    status: "완료",
+    stil: 22,
+    abstain: false,
+    abstainReason: null,
+    hospital: "건양대병원",
+  },
+  {
+    id: "C-0231",
+    uploadedAt: "2026-07-21 08:55",
+    status: "완료",
+    stil: 61,
+    abstain: true,
+    abstainReason: "컷오프 근접(50%±5)",
+    hospital: "세브란스병원",
+  },
+  {
+    id: "C-0230",
+    uploadedAt: "2026-07-21 08:40",
+    status: "처리중",
+    stil: null,
+    abstain: null,
+    abstainReason: null,
+    hospital: "건양대병원",
+  },
+  {
+    id: "C-0229",
+    uploadedAt: "2026-07-20 17:02",
+    status: "완료",
+    stil: 15,
+    abstain: false,
+    abstainReason: null,
+    hospital: "서울성모병원",
+  },
+];

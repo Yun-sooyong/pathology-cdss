@@ -1,14 +1,32 @@
-function statusBadgeClass(status) {
-  if (status === 'error') return 'badge badge-strong';
-  return 'badge badge-neutral';
+import { TriangleAlert } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
+function StatusBadge({ status, label }) {
+  if (status === "error") {
+    return (
+      <Badge className="border border-destructive/40 bg-destructive/10 text-destructive">
+        {label}
+      </Badge>
+    );
+  }
+  return <Badge variant="secondary">{label}</Badge>;
 }
 
-export default function ErrorScreen({ batch, files, onGenerateReport, onBackToUpload }) {
+export default function ErrorScreen({
+  batch,
+  files,
+  onGenerateReport,
+  onBackToUpload,
+}) {
   const hasRealBatch = !!batch;
 
-  // 주의: 실제 API 응답엔 원래 파일명이 없어서, 업로드 순서 = jobs 배열 순서로 가정하고 매칭함
   const jobs = hasRealBatch
-    ? batch.jobs.map((job, i) => ({ ...job, name: files?.[i]?.name ?? `이미지 ${i + 1}` }))
+    ? batch.jobs.map((job, i) => ({
+        ...job,
+        name: files?.[i]?.name ?? `이미지 ${i + 1}`,
+      }))
     : [];
 
   const total = hasRealBatch ? batch.total : 0;
@@ -16,51 +34,68 @@ export default function ErrorScreen({ batch, files, onGenerateReport, onBackToUp
   const doneCount = hasRealBatch ? batch.done : 0;
 
   return (
-    <div className="card">
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 32, color: 'var(--ink-soft)', marginBottom: 8 }}>⚠</div>
-        {hasRealBatch ? (
-          <div style={{ fontSize: 16, fontWeight: 700 }}>
-            이미지 {total}개 중 <span style={{ color: 'var(--ink)' }}>{doneCount}개 완료</span>
-            {', '}
-            <span style={{ color: 'var(--eosin)' }}>{errorCount}개 오류</span>
-          </div>
-        ) : (
-          <div style={{ fontSize: 14, color: 'var(--muted)' }}>표시할 배치 정보가 없습니다.</div>
-        )}
-      </div>
-
-      {hasRealBatch && (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-          {jobs.map((job, i) => (
-            <div
-              key={job.job_id}
-              style={{ padding: '12px 16px', borderBottom: i < jobs.length - 1 ? '1px solid var(--border)' : 'none' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: job.status === 'error' ? 'var(--eosin)' : 'var(--ink)', fontWeight: job.status === 'error' ? 700 : 400 }}>
-                  {job.status === 'error' ? '⚠ ' : ''}{job.name}
-                </span>
-                <span className={statusBadgeClass(job.status)}>{job.status_label}</span>
-              </div>
-              {job.status === 'error' && (
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  사유 정보 없음 (API 응답에 실패 이유 필드가 아직 없어요 — 백엔드팀 확인 필요)
-                </div>
-              )}
+    <Card>
+      <CardContent className="pt-6">
+        <div className="mb-6 text-center">
+          <TriangleAlert
+            size={32}
+            className="mx-auto mb-2 text-muted-foreground"
+          />
+          {hasRealBatch ? (
+            <div className="text-base font-semibold">
+              이미지 {total}개 중{" "}
+              <span className="text-foreground">{doneCount}개 완료</span>
+              {", "}
+              <span className="text-destructive">{errorCount}개 오류</span>
             </div>
-          ))}
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              표시할 배치 정보가 없습니다.
+            </div>
+          )}
         </div>
-      )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-        <button className="btn btn-secondary" onClick={onGenerateReport}>
-          오류리포트 (전달용)
-        </button>
-        <button className="btn btn-primary" onClick={onBackToUpload}>
-          다시 업로드
-        </button>
-      </div>
-    </div>
+        {hasRealBatch && (
+          <div className="overflow-hidden rounded-lg border border-border">
+            {jobs.map((job, i) => (
+              <div
+                key={job.job_id}
+                className={`px-4 py-3 ${
+                  i < jobs.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-sm ${
+                      job.status === "error"
+                        ? "font-semibold text-destructive"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {job.status === "error" ? "⚠ " : ""}
+                    {job.name}
+                  </span>
+                  <StatusBadge status={job.status} label={job.status_label} />
+                </div>
+                {job.status === "error" && (
+                  <div className="mt-1.5 text-xs text-muted-foreground">
+                    {job.error_message
+                      ? `사유: ${job.error_message}`
+                      : "사유 정보 없음 (이 job엔 error_message가 아직 안 채워짐)"}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-between">
+          <Button variant="secondary" onClick={onGenerateReport}>
+            오류리포트 (전달용)
+          </Button>
+          <Button onClick={onBackToUpload}>다시 업로드</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

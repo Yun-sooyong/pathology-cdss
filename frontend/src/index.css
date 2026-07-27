@@ -1,194 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* sTILs 세그멘테이션 오버레이 전용 (bg-seg-tumor 등으로 사용) */
+  --color-seg-tumor: #ff0055;
+  --color-seg-stroma: #00d2ff;
+  --color-seg-tils: #ffe600;
+  --color-seg-abstain: #f59e0b; /* amber-500, 기존 #ff8c00에서 변경 */
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
 
 :root {
-  /* ---- 다크 팔레트: H&E 염색(헤마톡실린 보라 / 에오신 로즈)에서 가져온 색 ---- */
-  --bg: #18141f;
-  --surface: #221d2c;
-
-  --ink: #ede9f2;          /* 본문 텍스트 */
-  --ink-soft: #b8afc4;     /* 보조 텍스트 */
-  --muted: #8a8290;        /* placeholder, 캡션 */
-  --border: #3a3448;
-
-  --hema: #9a8cd9;         /* 헤마톡실린 — 주 액센트 (버튼, 활성 탭) */
-  --hema-dark: #b3a6e8;    /* hover — 다크 테마라 더 밝게 */
-  --hema-soft: rgba(154, 140, 217, 0.16);
-
-  --eosin: #e28aa5;        /* 에오신 — 경고/기권/컷오프 액센트 */
-  --eosin-dark: #f0a8be;
-  --eosin-soft: rgba(226, 138, 165, 0.16);
-
-  --tissue: #8fbf9b;       /* 조직 그린 — 완료/정상 상태 */
-  --tissue-soft: rgba(143, 191, 155, 0.16);
-
-  --radius: 12px;
-  --sp-1: 8px; --sp-2: 16px; --sp-3: 24px; --sp-4: 32px; --sp-5: 40px; --sp-6: 48px;
-
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
-
-  --font-ui: 'IBM Plex Sans', -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
-  --font-data: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  --background: #090d16;
+  --foreground: #f9fafb;
+  --card: #111827;
+  --card-foreground: #f9fafb;
+  --popover: #111827;
+  --popover-foreground: #f9fafb;
+  --primary: #f1f5f9; /* slate-100, 밝은 중립 — CTA 버튼용 */
+  --primary-foreground: #0f172a; /* 버튼 위 텍스트는 어두운 톤 */
+  --secondary: #1f2937;
+  --secondary-foreground: #f9fafb;
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+  --accent: #1f2937;
+  --accent-foreground: #f9fafb;
+  --destructive: #ef4444;
+  --border: #1f2937;
+  --input: #1f2937;
+  --ring: #f59e0b;
+  --radius: 0.5rem;
 }
 
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: var(--font-ui);
-  background: var(--bg);
-  color: var(--ink);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--hema);
-  outline-offset: 2px;
-}
-
-/* ---------- 레이아웃: 12컬럼 그리드 ---------- */
-.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--sp-3); }
-.col-3 { grid-column: span 3; }
-.col-4 { grid-column: span 4; }
-.col-5 { grid-column: span 5; }
-.col-6 { grid-column: span 6; }
-.col-7 { grid-column: span 7; }
-.col-8 { grid-column: span 8; }
-.col-12 { grid-column: span 12; }
-
-/* ---------- 카드 ---------- */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--sp-3);
-  box-shadow: var(--shadow);
-}
-.card-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: var(--sp-2);
-}
-
-.stat-label {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-/* ---------- 업로드 드롭존 ---------- */
-.dropzone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  padding: var(--sp-6) var(--sp-3);
-  text-align: center;
-  color: var(--ink-soft);
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-.dropzone:hover { border-color: var(--hema); background: var(--hema-soft); }
-.dropzone .icon { font-size: 30px; margin-bottom: 8px; color: var(--hema); }
-.filetypes { font-size: 11px; color: var(--muted); margin-top: 6px; }
-
-/* ---------- 파일 미리보기 ---------- */
-.file-preview {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  background: var(--surface);
-}
-.file-thumb {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--hema-soft), var(--eosin-soft));
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-/* ---------- 폼 컨트롤 ---------- */
-.select {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--ink);
-  background: var(--surface);
-  font-family: var(--font-ui);
-}
-.select:focus { border-color: var(--hema); }
-
-/* ---------- 버튼 ---------- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  padding: 9px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  font-family: var(--font-ui);
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
-}
-.btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-.btn-primary { background: var(--hema); color: #18141f; border-color: var(--hema); font-weight: 600; }
-.btn-primary:hover:not(:disabled) { background: var(--hema-dark); border-color: var(--hema-dark); }
-
-.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
-.btn-secondary:hover:not(:disabled) { background: var(--hema-soft); border-color: var(--hema); }
-
-.btn-sm { padding: 6px 12px; font-size: 11px; }
-
-/* ---------- 테이블 ---------- */
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
-th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
-td { font-family: var(--font-data); font-size: 12.5px; color: var(--ink); }
-td:first-child { font-family: var(--font-ui); }
-
-/* ---------- 배지 ---------- */
-.badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 14px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid transparent;
-}
-.badge-neutral { background: var(--tissue-soft); color: var(--tissue); border-color: var(--tissue); }
-.badge-strong { background: var(--eosin-soft); color: var(--eosin-dark); border-color: var(--eosin); }
-
-/* ---------- 대시보드 전용 그라데이션 배경 (헤마톡실린 → 에오신 노을) ---------- */
-.dashboard-shell {
-  background: linear-gradient(150deg, #241f3d 0%, #3d2c4d 30%, #6b3f56 60%, #8c5468 100%);
-  border-radius: 16px;
-  padding: 32px;
-  margin: -32px -24px;
-  min-height: calc(100vh - 64px);
-}
-.dashboard-shell h1,
-.dashboard-shell .card-title { color: rgba(255, 255, 255, 0.55); }
-.dashboard-shell > div > h1 { color: #fff; }
-.dashboard-shell .card {
-  background: rgba(20, 17, 26, 0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-.dashboard-shell td,
-.dashboard-shell th { border-color: rgba(255, 255, 255, 0.1); }
-.dashboard-shell th { color: rgba(255, 255, 255, 0.4); }
