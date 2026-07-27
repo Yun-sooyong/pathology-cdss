@@ -161,7 +161,111 @@ const MOCK_SLIDES = ["slide_0231.tiff", "slide_0232.tiff", "slide_0233.tiff"];
 function findTabDef(id) {
   return TAB_DEFS.find((t) => t.id === id);
 }
+function downloadJsonReport({ caseId, realJob, result }) {
+  const payload = {
+    case_id: caseId,
+    stil_ratio_percent: Math.round(result.stil_ratio * 100 * 100) / 100,
+    uncertainty: {
+      cp_value: result.uncertainty.cp_value,
+      lower_percent: Math.round(result.uncertainty.lower * 100 * 100) / 100,
+      upper_percent: Math.round(result.uncertainty.upper * 100 * 100) / 100,
+      abstain: result.uncertainty.abstain,
+    },
+    segmentation_summary: result.segmentation_summary,
+    findings: result.findings,
+    disclaimer: result.disclaimer,
+    model_name: realJob?.model_name ?? null,
+    generated_at: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${caseId ?? "case"}_report.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
+async function imageUrlToBase64(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function downloadPdfReport({ caseId, realJob, realImageUrl, realMaskUrl, result }) {
+  const stilPercent = Math.round(result.stil_ratio * 100 * 100) / 100;
+  const lower = Math.round(result.uncertainty.lower * 100 * 100) / 100;
+  const upper = Math.round(result.uncertainty.upper * 100 * 100) / 100;
+
+  const [imageB64, maskB64] = await Promise.all([
+    imageUrlToBase64(realImageUrl),
+    imageUrlToBase64(realMaskUrl),
+  ]);
+
+  const imagesHtml = `
+    <div class="section images">
+      ${imageB64 ? `<div><div class="img-label">원본 이미지</div><img src="${imageB64}" /></div>` : ""}
+      ${maskB64 ? `<div><div class="img-label">세그멘테이션 마스크</div><img src="${maskB64}" /></div>` : ""}
+    </div>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${caseId ?? "case"} 분석 보고서</title>
+        <style>
+          body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; color: #111; }
+          h1 { font-size: 20px; border-bottom: 2px solid #111; padding-bottom: 8px; }
+          .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #ddd; }
+          .label { color: #555; }
+          .value { font-weight: 600; }
+          .section { margin-top: 24px; }
+          .images { display: flex; gap: 16px; }
+          .images > div { flex: 1; }
+          .img-label { font-size: 12px; color: #555; margin-bottom: 6px; }
+          .images img { width: 100%; border: 1px solid #ddd; border-radius: 4px; }
+          .disclaimer { margin-top: 32px; font-size: 12px; color: #777; border-top: 1px solid #ddd; padding-top: 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>sTILs AI CDSS 분석 결과지</h1>
+        <div class="section">
+          <div class="row"><span class="label">케이스 ID</span><span class="value">${caseId ?? realJob?.job_id ?? "-"}</span></div>
+          <div class="row"><span class="label">사용 모델</span><span class="value">${realJob?.model_name ?? "-"}</span></div>
+          <div class="row"><span class="label">sTIL</span><span class="value">${stilPercent}%</span></div>
+          <div class="row"><span class="label">예측구간 (CP ${result.uncertainty.cp_value})</span><span class="value">${lower}% - ${upper}%</span></div>
+          <div class="row"><span class="label">기권여부</span><span class="value">${result.uncertainty.abstain ? "기권" : "자동판정"}</span></div>
+        </div>
+        ${imagesHtml}
+        <div class="section">
+          <h3>세그멘테이션 요약</h3>
+          <p>${result.segmentation_summary || "-"}</p>
+        </div>
+        <div class="section">
+          <h3>판독 소견</h3>
+          <p>${result.findings || "-"}</p>
+        </div>
+        <div class="disclaimer">${result.disclaimer}</div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.onload = () => {
+    printWindow.focus();
+    printWindow.print();
+  };
+}
 const imgBoxClass =
   "flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-border bg-background p-4 text-center text-sm text-muted-foreground";
 
@@ -199,7 +303,8 @@ export default function DetailScreen({
   const [openTabs, setOpenTabs] = useState(["original", "seg", "uncertainty", "compare"]);
   const [activeTab, setActiveTab] = useState("original");
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
+ const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [zoomImage, setZoomImage] = useState(null); // { url, label }
 
 
   const availableToAdd = TAB_DEFS.filter((t) => !openTabs.includes(t.id));
@@ -425,7 +530,8 @@ export default function DetailScreen({
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => handleComingSoon("돋보기")}
+                        disabled={!realImageUrl}
+                        onClick={() => setZoomImage({ url: realImageUrl, label: "원본 이미지" })}
                       >
                         <ZoomIn size={13} /> 돋보기
                       </Button>
@@ -450,7 +556,8 @@ export default function DetailScreen({
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => handleComingSoon("돋보기")}
+                        disabled={!realMaskUrl}
+                        onClick={() => setZoomImage({ url: realMaskUrl, label: "세그멘테이션 마스크" })}
                       >
                         <ZoomIn size={13} /> 돋보기
                       </Button>
@@ -520,18 +627,39 @@ export default function DetailScreen({
             <Button
               variant="secondary"
               className="w-full"
-              onClick={() => setShowDownloadModal(false)}
+              onClick={async () => {
+                setShowDownloadModal(false);
+                await downloadPdfReport({ caseId, realJob, realImageUrl, realMaskUrl, result });
+              }}
             >
               PDF
             </Button>
             <Button
               variant="secondary"
               className="w-full"
-              onClick={() => setShowDownloadModal(false)}
+              onClick={() => {
+                downloadJsonReport({ caseId, realJob, result });
+                setShowDownloadModal(false);
+              }}
             >
               JSON
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!zoomImage} onOpenChange={(open) => !open && setZoomImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{zoomImage?.label}</DialogTitle>
+          </DialogHeader>
+          {zoomImage?.url && (
+            <img
+              src={zoomImage.url}
+              alt={zoomImage.label}
+              className="max-h-[75vh] w-full object-contain"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
