@@ -89,11 +89,15 @@ def test_run_mc_dropout_batches_in_one_forward_call_and_varies(tmp_path):
     assert not np.all(masks == masks[0])
 
 
-def test_tile_image_splits_without_overlap_and_drops_ragged_edge():
+def test_tile_image_uses_sliding_window_with_boundary_snap():
     image = _fake_tissue_image(70, 70)
-    tiles = tile_image(image, tile_size=32, min_tissue_ratio=0.0)
-    coords = sorted((y, x) for y, x, _ in tiles)
-    assert coords == [(0, 0), (0, 32), (32, 0), (32, 32)]
+    tiles = tile_image(image, tile_size=32, stride=32, min_tissue_ratio=0.0)
+    coords = sorted({(y, x) for y, x, _ in tiles})
+    assert coords == [
+        (0, 0), (0, 32), (0, 38),
+        (32, 0), (32, 32), (32, 38),
+        (38, 0), (38, 32), (38, 38),
+    ]
     for _, _, tile_chw in tiles:
         assert tile_chw.shape == (3, 32, 32)
         assert tile_chw.dtype == np.float32
@@ -108,13 +112,13 @@ def test_tile_image_skips_background_only_tiles():
     assert (0, 32) in coords
 
 
-def test_tile_image_raises_when_image_smaller_than_tile():
+def test_tile_image_pads_when_image_smaller_than_tile():
     image = _fake_tissue_image(16, 16)
-    try:
-        tile_image(image, tile_size=32)
-        assert False, "이미지가 타일보다 작은데 ValueError가 안 났음"
-    except ValueError:
-        pass
+    tiles = tile_image(image, tile_size=32, min_tissue_ratio=0.0)
+    assert len(tiles) == 1
+    y, x, tile_chw = tiles[0]
+    assert (y, x) == (0, 0)
+    assert tile_chw.shape == (3, 32, 32)
 
 
 def test_tile_image_raises_when_all_tiles_are_background():
