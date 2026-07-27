@@ -11,13 +11,11 @@ from src.inference import unpack_masks
 URL = os.environ.get("MOSEC_URL", "http://127.0.0.1:8000/inference")
 TOKEN = os.environ.get("MOSEC_TOKEN")
 MODEL_NAME = os.environ.get("MOSEC_MODEL_NAME", "attention_unet_v1")
+GCS_IMAGE_PATH = os.environ.get("GCS_IMAGE_PATH", "gs://model-platform-502402-data/test/sample_tissue.png")
 
 
 def main():
-    with open("scripts/sample_tissue.png", "rb") as f:
-        image_bytes = f.read()
-
-    payload = {"job_id": "stil-test-1", "image": image_bytes, "model_name": MODEL_NAME}
+    payload = {"job_id": "stil-test-1", "gcs_image_path": GCS_IMAGE_PATH, "model_name": MODEL_NAME}
     body = msgpack.packb(payload, use_bin_type=True)
 
     headers = {"Content-Type": "application/msgpack"}
