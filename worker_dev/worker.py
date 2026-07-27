@@ -158,13 +158,6 @@ def _parse_gcs_uri(gcs_uri: str) -> tuple:
     return bucket_name, blob_path
 
 
-def download_gcs_blob(gcs_uri: str) -> bytes:
-    """GCS 파일을 바이트로 다운로드 (윤수용 확정: mc_stack/seg_image는 GCS 경로로 전달됨)."""
-    bucket_name, blob_path = _parse_gcs_uri(gcs_uri)
-    bucket = storage.Client().bucket(bucket_name)
-    return bucket.blob(blob_path).download_as_bytes()
-
-
 def upload_gcs_blob(gcs_uri: str, data: bytes, content_type: str = "image/png"):
     """GCS에 바이트를 업로드한다 (세그 결과 이미지 저장용)."""
     bucket_name, blob_path = _parse_gcs_uri(gcs_uri)
@@ -180,12 +173,6 @@ def save_seg_image(seg_image: Image.Image, gcs_uri: str):
     buf = io.BytesIO()
     seg_image.save(buf, format="PNG")
     upload_gcs_blob(gcs_uri, buf.getvalue())
-
-
-def load_source_image(gcs_uri: str) -> np.ndarray:
-    """GCS의 원본 병리 이미지 -> (H, W, 3) uint8 배열 (세그멘테이션 입력용)."""
-    img = Image.open(io.BytesIO(download_gcs_blob(gcs_uri))).convert("RGB")
-    return np.asarray(img, dtype=np.uint8)
 
 
 def render_seg_image(mc_stack: np.ndarray) -> Image.Image:
@@ -231,11 +218,11 @@ def run_job(payload: dict):
 
     payload (윤수용 아키텍처 문서 2.4절):
         { "job_id", "model_name",
-          "gcs_image_path",   # 원본을 여기서 읽고
-          "gcs_result_path" } # 세그 결과 이미지를 여기에 쓴다
+          "gcs_image_path",   # GPU 서비스가 이 경로에서 원본을 직접 읽는다
+          "gcs_result_path" } # 워커가 세그 결과 이미지를 여기에 쓴다
 
-    ⚠️ 세그멘테이션 결과(mc_stack)는 파일로 오지 않는다. 워커가 원본을 받아
-       타일로 잘라 GPU 서비스를 직접 호출하고 재조립한다.
+    ⚠️ 워커는 원본 이미지를 다운로드하지 않는다. 경로만 GPU 서비스에 넘기고
+       타일 분할·추론·재조립은 서비스가 처리한다(2026-07-27 변경).
     """
     job_id = payload["job_id"]
     model_name = payload["model_name"]
@@ -243,10 +230,9 @@ def run_job(payload: dict):
     # 미보정 모델이면 GPU를 부르기 전에 여기서 막힌다 (헛돈 쓰지 않도록 먼저 검사)
     get_conformal_q(model_name)
 
-    # ── 1) 원본 -> 타일 분할 -> 세그멘테이션 호출 -> mc_stack 재조립 ────
-    image = load_source_image(payload["gcs_image_path"])
-    mc_stack = call_segmentation(image, model_name=model_name, job_id=job_id)
-    del image   # 원본은 최대 141MB — 이후 안 쓰므로 일찍 놓아준다
+    # ── 1) 세그멘테이션 (경로만 넘김 — 타일 분할·재조립은 GPU 서비스 담당) ──
+    mc_stack = call_segmentation(payload["gcs_image_path"],
+                                 model_name=model_name, job_id=job_id)
 
     seg_image = render_seg_image(mc_stack)
     save_seg_image(seg_image, payload["gcs_result_path"])
