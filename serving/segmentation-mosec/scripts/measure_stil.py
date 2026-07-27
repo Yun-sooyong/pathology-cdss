@@ -13,10 +13,7 @@ TOKEN = os.environ.get("MOSEC_TOKEN")
 MODEL_NAME = os.environ.get("MOSEC_MODEL_NAME", "attention_unet_v1")
 
 def main():
-    with open("scripts/sample_tissue.png", "rb") as f:
-        image_bytes = f.read()
-
-    payload = {"job_id": "stil-test-1", "image": image_bytes, "model_name": MODEL_NAME}
+    payload = {"job_id": "stil-test-1", "gcs_image_path": GCS_IMAGE_PATH, "model_name": MODEL_NAME}
     body = msgpack.packb(payload, use_bin_type=True)
 
     headers = {"Content-Type": "application/msgpack"}
@@ -30,7 +27,8 @@ def main():
 
     result = msgpack.unpackb(resp.content, raw=False)
 
-    masks = unpack_masks(result["masks"])   # [N, H, W] uint8
+    print("model_name_used:", result["model_name_used"])
+    masks = unpack_masks(result["masks"])
     stil_result = stil_from_mc_stack(masks)
     unique, counts = np.unique(masks, return_counts=True)
     print("클래스별 픽셀 수:", dict(zip(unique.tolist(), counts.tolist())))

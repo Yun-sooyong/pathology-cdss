@@ -106,36 +106,48 @@ def _normalize_pixels_chw(rgb_uint8_hwc: np.ndarray) -> np.ndarray:
     chw = arr.transpose(2, 0, 1)  # CHW
     return (chw - _MEAN) / _STD
 
-def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, min_tissue_ratio: float = None):
-    """염색 정규화까지 끝난 원본 이미지를 겹치지 않는 tile_size 조각으로 분할.
+def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, stride: int = None, min_tissue_ratio: float = None):
+    """염색 정규화까지 끝난 원본 이미지를 stride 간격으로 겹치며 타일링한다.
 
-    학습 파이프라인의 extract_patches()와 동일한 규칙:
-      - stride = tile_size (겹침 없음)
-      - tile_size로 안 나누어떨어지는 가장자리는 버림 (패딩하지 않음)
-      - 조직이 거의 없는 타일은 건너뜀 -- 정답 마스크가 없으므로, macenko와 같은
-        OD(광학 밀도) 임계값으로 조직 픽셀 비율을 추정한다.
+    학습 파이프라인(mc_dropout.py)과 동일한 규칙:
+      - stride < tile_size면 겹치는 슬라이딩 윈도우 (기본 50% 겹침)
+      - 마지막 타일은 이미지 경계에 맞춰 안쪽으로 당김 (패딩 없이 전체를 덮음)
+      - 이미지 자체가 tile_size보다 작으면 edge-replicate로 tile_size까지 패딩
+      - 조직이 거의 없는 타일은 건너뜀
 
     Returns:
         [(y, x, tile_chw), ...] -- tile_chw는 픽셀 정규화까지 끝난
-        [C, tile_size, tile_size] float32. (y, x)는 원본 이미지에서 이 타일의
-        좌상단 좌표로, reassemble_masks()가 다시 이어붙일 때 쓴다.
+        [C, tile_size, tile_size] float32. (y, x)는 (패딩 적용된) 이미지 기준
+        좌상단 좌표.
     """
     tile_size = tile_size or config.TILE_SIZE
+    stride = stride or config.TILE_STRIDE
     min_tissue_ratio = config.MIN_TISSUE_RATIO if min_tissue_ratio is None else min_tissue_ratio
 
     h, w, _ = rgb_uint8_hwc.shape
-    if h < tile_size or w < tile_size:
-        raise ValueError(f"이미지 크기({h}x{w})가 타일 크기({tile_size})보다 작음")
+    hp, wp = max(h, tile_size), max(w, tile_size)
+    if (hp, wp) != (h, w):
+        rgb_uint8_hwc = np.pad(
+            rgb_uint8_hwc, ((0, hp - h), (0, wp - w), (0, 0)), mode="edge"
+        )
+
+    ys = _tile_starts(hp, tile_size, stride)
+    xs = _tile_starts(wp, tile_size, stride)
 
     tiles = []
-    for y in range(0, h - tile_size + 1, tile_size):
-        for x in range(0, w - tile_size + 1, tile_size):
+    for y in ys:
+        for x in xs:
             raw_tile = rgb_uint8_hwc[y:y + tile_size, x:x + tile_size]
             od = _rgb_to_od(raw_tile).reshape(-1, 3)
             tissue_ratio = np.any(od > _OD_BACKGROUND_THRESHOLD, axis=1).mean()
             if tissue_ratio < min_tissue_ratio:
                 continue
             tiles.append((y, x, _normalize_pixels_chw(raw_tile)))
+
+    if not tiles:
+        raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
+
+    return tiles
 
     if not tiles:
         raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
@@ -183,29 +195,60 @@ def reassemble_masks(tile_results, canvas_shape: tuple, tile_size: int = None, f
 
     return canvas
 
+def _softmax(logits: np.ndarray, axis: int) -> np.ndarray:
+    """오버플로 방지된 softmax."""
+    shifted = logits - np.max(logits, axis=axis, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / np.sum(exp, axis=axis, keepdims=True)
 
 def run_mc_dropout_tiled(
-    model: SegmentationModel, rgb_uint8_hwc: np.ndarray, n: int = None, tile_size: int = None
+    model: SegmentationModel,
+    rgb_uint8_hwc: np.ndarray,
+    n: int = None,
+    tile_size: int = None,
+    stride: int = None,
+    batch: int = 8,
 ) -> np.ndarray:
-    """염색 정규화까지 끝난 원본 이미지를 타일로 잘라, 타일별로 MC Dropout을
-    돌리고, 결과를 원본 크기로 다시 이어붙여 반환한다. server.py가 부를
-    "전체 파이프라인" 진입점이 될 함수.
+    """염색 정규화까지 끝난 원본 이미지를 타일로 잘라, MC Dropout 샘플마다
+    겹친 타일들의 softmax 확률을 평균 내어 재조립한 뒤 argmax하여 반환한다.
 
-    타일 하나당 forward 호출을 한 번씩 한다 (타일 안에서는 여전히 N개를
-    배치로 묶어서 1회 호출). 타일까지 한꺼번에 배치로 묶어 호출 수를 아예
-    1번으로 줄이는 것도 가능하지만, 지금은 정확성/가독성을 우선했어.
+    겹침 블렌딩은 "같은 MC 샘플 안에서"만 한다 -- 서로 다른 MC 샘플의 확률을
+    섞으면 불확실도 추정이 무의미해진다. MC 샘플 k마다: 그 샘플의 모든 타일
+    예측 확률을 (패딩된 크기의) 캔버스에 누적 -> 평균 -> 마지막에 원본 크기로
+    잘라내고 argmax한다.
+
+    타일을 한꺼번에 배치로 묶지 않고 `batch`개씩 쪼개서 처리한다 -- 타일 수가
+    많은 큰 이미지에서 배치가 너무 커져 GPU 메모리를 초과하는 걸 막기 위함.
 
     Returns:
         [N, H, W] uint8 -- 원본 이미지 전체 크기의 MC Dropout 마스크 스택.
     """
+    n = n or config.MC_DROPOUT_N
+    tile_size = tile_size or config.TILE_SIZE
+    stride = stride or config.TILE_STRIDE
     h, w, _ = rgb_uint8_hwc.shape
-    tiles = tile_image(rgb_uint8_hwc, tile_size=tile_size)
+    hp, wp = max(h, tile_size), max(w, tile_size)
 
-    tile_results = [
-        (y, x, run_mc_dropout(model, tile_chw, n=n))
-        for y, x, tile_chw in tiles
-    ]
-    return reassemble_masks(tile_results, canvas_shape=(h, w), tile_size=tile_size)
+    tiles = tile_image(rgb_uint8_hwc, tile_size=tile_size, stride=stride)
+
+    preds = np.empty((n, h, w), dtype=np.uint8)
+    for k in range(n):
+        prob_sum = np.zeros((config.NUM_CLASSES, hp, wp), dtype=np.float32)
+        count = np.zeros((hp, wp), dtype=np.float32)
+
+        for i in range(0, len(tiles), batch):
+            chunk = tiles[i:i + batch]
+            tile_batch = np.stack([tile_chw for _, _, tile_chw in chunk])  # [b, C, tile, tile]
+            logits = model.predict_logits(tile_batch)  # [b, num_classes, tile, tile]
+            probs = _softmax(logits, axis=1)
+            for (y, x, _), tile_prob in zip(chunk, probs):
+                prob_sum[:, y:y + tile_size, x:x + tile_size] += tile_prob
+                count[y:y + tile_size, x:x + tile_size] += 1.0
+
+        prob_avg = prob_sum / np.maximum(count, 1.0)
+        preds[k] = prob_avg[:, :h, :w].argmax(axis=0).astype(np.uint8)  # 패딩 제거 후 argmax
+
+    return preds
 
 def pack_masks(masks: np.ndarray) -> bytes:
     buf = io.BytesIO()
@@ -217,3 +260,35 @@ def unpack_masks(data: bytes) -> np.ndarray:
     buf = io.BytesIO(data)
     with np.load(buf) as npz:
         return npz["masks"]
+    
+def _tile_starts(size: int, patch: int, stride: int):
+    """stride 간격의 타일 시작 좌표. 마지막 타일은 경계에 맞춘다."""
+    if size <= patch:
+        return [0]
+    starts = list(range(0, size - patch + 1, stride))
+    if starts[-1] != size - patch:
+        starts.append(size - patch)
+    return starts
+
+from google.cloud import storage
+
+_gcs_client = None
+
+
+def _get_gcs_client():
+    global _gcs_client
+    if _gcs_client is None:
+        _gcs_client = storage.Client()
+    return _gcs_client
+
+
+def download_gcs_bytes(gcs_path: str) -> bytes:
+    """gs://bucket/key 형태의 경로에서 원본 이미지 바이트를 읽어온다."""
+    if not gcs_path.startswith("gs://"):
+        raise ValueError(f"gcs_image_path는 gs://로 시작해야 함: {gcs_path!r}")
+    bucket_name, _, blob_name = gcs_path[len("gs://"):].partition("/")
+    if not bucket_name or not blob_name:
+        raise ValueError(f"gcs_image_path 형식이 잘못됨: {gcs_path!r}")
+    client = _get_gcs_client()
+    blob = client.bucket(bucket_name).blob(blob_name)
+    return blob.download_as_bytes()

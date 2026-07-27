@@ -18,8 +18,8 @@ def _float(name: str, default: float) -> float:
 MODEL_DIR = os.environ.get("MODEL_DIR", "./weights")
 
 # 이미지 한 장당 MS Dropout을 몇 번 진행할 지
-# "25번 순차 추론"
-MC_DROPOUT_N = _int("MC_DROPOUT_N", 25)
+# "20번 순차 추론"
+MC_DROPOUT_N = _int("MC_DROPOUT_N", 20)
 
 # 세그멘테이션 클래스 개수
 NUM_CLASSES = _int("NUM_CLASSES", 5)
@@ -43,7 +43,7 @@ MIN_TISSUE_RATIO = _float("MIN_TISSUE_RATIO", 0.1)
 # MC_DROPOUT_N 배칭이랑 다른 말 -> 이건 "동시에 여러 사람이 업로드 했을 경우"
 MAX_BATCH_SIZE = _int("MAX_BATCH_SIZE", 4)
 MAX_WAIT_TIME_MS = _int("MAX_WAIT_TIME_MS", 30)
-NUM_PREPROCESS_WOEKERS = _int("NUM_PREPROCESS_WOEKERS", 2)
+NUM_PREPROCESS_WORKERS = _int("NUM_PREPROCESS_WORKERS", 2)
 NUM_INFERENCE_WORKERS = _int("NUM_INFERENCE_WORKERS", 1)
 
 # 이 프로세스가 몇 번 GPU를 쓸지
@@ -60,3 +60,9 @@ HTTP_PORT = _int("HTTP_PORT", 8000)
 STROMA_IDX = _int("STROMA_IDX", 1)
 IMMUNE_IDX = _int("IMMUNE_IDX", 2)
 
+# 환경 변수 추가
+ENABLE_MEDGEMMA = _bool("ENABLE_MEDGEMMA", False)
+NUM_MEDGEMMA_WORKERS = _int("NUM_MEDGEMMA_WORKERS", 1)
+
+# 1단계(stride/경계 스냅 + edge-replicate 패딩)
+TILE_STRIDE = _int("TILE_STRIDE", 256)

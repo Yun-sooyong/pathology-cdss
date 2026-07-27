@@ -3,3 +3,7 @@ numpy>=1.24,<2.0
 Pillow>=10.0
 onnxruntime>=1.17
 msgpack>=1.0
+transformers
+accelerate
+google-cloud-storage
+torch==2.6.0+cu124
