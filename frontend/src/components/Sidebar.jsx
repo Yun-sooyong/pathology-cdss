@@ -4,8 +4,6 @@ import {
   Microscope,
   TriangleAlert,
   BarChart3,
-  Settings,
-  User,
 } from "lucide-react";
 import { MOCK_CASES } from "../mockCases";
 
@@ -38,10 +36,10 @@ export default function Sidebar() {
         <nav className="space-y-1">
           {NAV_ITEMS.map((item) => {
             const isCurrent =
-              item.to &&
-              (item.to === "/"
-                ? location.pathname === "/"
-                : location.pathname + location.search === item.to);
+  item.to &&
+  (item.to === "/"
+    ? location.pathname === "/" && location.search === ""
+    : location.pathname + location.search === item.to);
             const Icon = item.icon;
 
             if (!item.to) {
@@ -82,14 +80,6 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      <div className="border-t border-border px-2 pt-4">
-        <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground/50">
-          <Settings size={13} /> AI 모델 설정 (준비중)
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
-          <User size={13} /> 담당 병리의 계정 (연동 예정)
-        </div>
-      </div>
     </aside>
   );
 }

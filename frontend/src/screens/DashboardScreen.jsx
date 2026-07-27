@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,10 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
     searchParams.get("filter") === "abstain" ? "abstain" : "all",
   );
 
+  useEffect(() => {
+    setFilter(searchParams.get("filter") === "abstain" ? "abstain" : "all");
+  }, [searchParams]);
+
   const needsReview = MOCK_CASES.filter((c) => c.abstain === true);
   const total = MOCK_CASES.length;
   const done = MOCK_CASES.filter((c) => c.status === "완료").length;
@@ -121,69 +125,66 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
         <Button onClick={onNewAnalysis}>+ 새 슬라이드 분석 시작</Button>
       </div>
 
-      {/* KPI 4개 */}
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <KpiCard label="전체 케이스" value={total} />
-        <KpiCard label="자동 완료" value={done - abstainCount} />
-        <KpiCard
-          label={`AI 기권 (${abstainCount}건)`}
-          value={abstainCount}
-          accent
-        />
-        <KpiCard label="평균 sTIL" value={avgStil} />
+     {/* KPI: 기권 필터일 땐 AI 기권 카드 하나만 */}
+      <div className={`mb-6 grid grid-cols-2 gap-4 ${filter === "abstain" ? "md:grid-cols-1" : "md:grid-cols-4"}`}>
+        {filter !== "abstain" && (
+          <>
+            <KpiCard label="전체 케이스" value={total} />
+            <KpiCard label="자동 완료" value={done - abstainCount} />
+          </>
+        )}
+        <KpiCard label={`AI 기권 (${abstainCount}건)`} value={abstainCount} accent />
+        {filter !== "abstain" && <KpiCard label="평균 sTIL" value={avgStil} />}
       </div>
 
-      {/* 좌: 차트 2개 / 우: 우선검토 + sTIL 트렌드 */}
+     {/* 좌: 기권 원인 분석 (항상) + sTIL 분포(전체 필터일 때만) / 우: 우선검토 + 트렌드(전체 필터일 때만) */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-12">
-        <div className="flex flex-col gap-4 md:col-span-7">
-          <Card className="border border-seg-abstain/40 bg-seg-abstain/10 shadow-[0_0_35px_-2px_rgba(245,158,11,0.4)]">
-            <CardHeader>
-              <CardTitle className="text-sm">sTIL 위험도 분포</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="h-28 w-28 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={buckets}
-                        dataKey="value"
-                        innerRadius={32}
-                        outerRadius={50}
-                        paddingAngle={2}
-                        stroke="none"
-                      >
-                        {buckets.map((b, i) => (
-                          <Cell key={i} fill={b.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        cursor={false}
-                        contentStyle={{
-                          background: "var(--color-card)",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+        <div className={`flex flex-col gap-4 ${filter === "abstain" ? "md:col-span-12" : "md:col-span-7"}`}>
+          {filter !== "abstain" && (
+            <Card className="transition-colors hover:border-seg-abstain/30">
+              <CardHeader>
+                <CardTitle className="text-sm">sTIL 위험도 분포</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <div className="h-28 w-28 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={buckets}
+                          dataKey="value"
+                          innerRadius={32}
+                          outerRadius={50}
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {buckets.map((b, i) => (
+                            <Cell key={i} fill={b.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: "var(--color-card)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-col gap-1.5 text-xs">
+                    {buckets.map((b) => (
+                      <div key={b.name} className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full" style={{ background: b.color }} />
+                        {b.name} <span className="font-mono font-semibold">{b.value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5 text-xs">
-                  {buckets.map((b) => (
-                    <div key={b.name} className="flex items-center gap-1.5">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ background: b.color }}
-                      />
-                      {b.name}{" "}
-                      <span className="font-mono font-semibold">{b.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="transition-colors hover:border-seg-abstain/30">
             <CardHeader>
@@ -197,20 +198,13 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
               ) : (
                 <div className="h-32">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={abstainReasons}
-                      layout="vertical"
-                      margin={{ left: 8 }}
-                    >
+                    <BarChart data={abstainReasons} layout="vertical" margin={{ left: 8 }}>
                       <XAxis type="number" hide />
                       <YAxis
                         type="category"
                         dataKey="reason"
                         width={140}
-                        tick={{
-                          fill: "var(--color-muted-foreground)",
-                          fontSize: 11,
-                        }}
+                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
                         axisLine={false}
                         tickLine={false}
                       />
@@ -223,13 +217,7 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
                           fontSize: 12,
                         }}
                       />
-                      <Bar
-                        dataKey="count"
-                        fill="var(--color-seg-abstain)"
-                        radius={[0, 4, 4, 0]}
-                        barSize={14}
-                        activeBar={false}
-                      />
+                      <Bar dataKey="count" fill="var(--color-seg-abstain)" radius={[0, 4, 4, 0]} barSize={14} activeBar={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -238,107 +226,91 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-4 md:col-span-5">
-          {/* 우선 검토 케이스 */}
+        {/* 우선 검토 케이스 */}
+        <div className={`flex flex-col gap-4 ${filter === "abstain" ? "md:col-span-12" : "md:col-span-5"}`}>
           <Card className="border border-seg-abstain/30 bg-seg-abstain/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm text-seg-abstain">
-                <TriangleAlert size={16} /> 우선 검토 케이스{" "}
-                {needsReview.length}건
+                <TriangleAlert size={16} /> 우선 검토 케이스 {needsReview.length}건
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-3">
                 {needsReview.map((c) => (
-                  <div
-                    key={c.id}
-                    className="group rounded-xl border border-border bg-card p-3 transition-colors hover:border-seg-abstain/40"
-                  >
-                    <div className="mb-2 flex items-start justify-between">
-                      {/* 조직 썸네일 자리 — 실제 이미지 연동 전 placeholder */}
-                      <div className="h-11 w-11 shrink-0 rounded-lg border border-border bg-background" />
-                      <button
-                        onClick={() => onViewCase(c.id)}
-                        className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                        aria-label={`${c.id} 검증하러 가기`}
-                      >
-                        <ArrowUpRight size={14} />
-                      </button>
-                    </div>
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="text-sm font-semibold">{c.id}</span>
-                      <span className="rounded-full border border-seg-abstain/30 bg-seg-abstain/10 px-2 py-0.5 text-[11px] font-bold text-seg-abstain">
-                        sTIL {c.stil}%
+                  <div key={c.id} className="flex items-center gap-3 rounded-md bg-card px-3 py-2.5">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded border border-border bg-background">
+                      <img
+                        src={c.thumbnail}
+                        alt="예시 이미지"
+                        className="h-full w-full object-cover opacity-70"
+                      />
+                      <span className="absolute bottom-0 right-0 rounded-tl bg-background/90 px-1 text-[8px] text-muted-foreground">
+                        예시
                       </span>
                     </div>
-                    <div className="mb-3 text-xs text-muted-foreground">
-                      {c.abstainReason ?? "사유 미기재"}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{c.id}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        sTIL {c.stil}% · {c.abstainReason ?? "사유 미기재"}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground/70">
-                      <span>{c.hospital}</span>
-                      <span>{c.uploadedAt.split(" ")[1]}</span>
-                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => onViewCase(c.id)}>
+                      검증 →
+                    </Button>
                   </div>
                 ))}
+                {needsReview.length === 0 && (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    확인이 필요한 케이스가 없습니다.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* sTIL 트렌드 — 실제 케이스 데이터 기반 */}
-          <Card className="flex-1 transition-colors hover:border-seg-abstain/30">
-            <CardHeader>
-              <CardTitle className="text-sm">sTIL 추이 (업로드 순)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={trend}
-                    margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      stroke="var(--color-border)"
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="id"
-                      tick={{
-                        fill: "var(--color-muted-foreground)",
-                        fontSize: 10,
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tick={{
-                        fill: "var(--color-muted-foreground)",
-                        fontSize: 10,
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--color-card)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="stil"
-                      stroke="var(--color-seg-abstain)"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {filter !== "abstain" && (
+            <Card className="flex-1 transition-colors hover:border-seg-abstain/30">
+              <CardHeader>
+                <CardTitle className="text-sm">sTIL 추이 (업로드 순)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="id"
+                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--color-card)",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="stil"
+                        stroke="var(--color-seg-abstain)"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

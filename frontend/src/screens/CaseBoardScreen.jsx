@@ -103,7 +103,13 @@ export default function CaseBoardScreen({ onViewCase }) {
                 >
                   <CardContent className="pt-3">
                     <div className="mb-2 flex items-start justify-between">
-                      <div className="h-9 w-9 shrink-0 rounded-md border border-border bg-background" />
+                      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+                      <img
+                        src={c.thumbnail}
+                        alt="예시 이미지"
+                        className="h-full w-full object-cover opacity-70"
+                      />
+                    </div>
                       {c.abstain && (
                         <span className="rounded-full border border-seg-abstain/30 bg-seg-abstain/10bg-seg-abstain/10 px-2 py-0.5 text-[10px] font-bold text-seg-abstain">
                           기권

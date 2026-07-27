@@ -40,10 +40,10 @@ export default function UploadScreen({
       size: formatSize(file.size),
       status: "ok",
       message: null,
+      previewUrl: URL.createObjectURL(file),
     }));
     setFiles((prev) => [...prev, ...newFiles]);
   }
-
   function handleFileInputChange(e) {
     if (e.target.files && e.target.files.length > 0) {
       addFiles(e.target.files);
@@ -60,9 +60,12 @@ export default function UploadScreen({
   }
 
   function removeFile(name) {
-    setFiles(files.filter((f) => f.name !== name));
+    setFiles((prev) => {
+      const target = prev.find((f) => f.name === name);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((f) => f.name !== name);
+    });
   }
-
   const hasBlockingError = files.some((f) => f.status === "error");
   const warningsAndErrors = files.filter((f) => f.status !== "ok");
 
@@ -109,17 +112,21 @@ export default function UploadScreen({
                 >
                   <X size={12} />
                 </button>
-                <div
+             <div
                   className={cn(
-                    "mx-auto h-24 w-24 rounded-md border",
+                    "mx-auto h-24 w-24 overflow-hidden rounded-md border bg-background",
                     file.status === "error"
                       ? "border-2 border-destructive"
-                      : "border-border",
+                      : "border-border"
                   )}
-                />
-                <div className="mt-1.5 break-all text-xs">{file.name}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {file.size}
+                >
+                  {file.previewUrl && (
+                    <img
+                      src={file.previewUrl}
+                      alt={file.name}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
                 </div>
               </div>
             ))}

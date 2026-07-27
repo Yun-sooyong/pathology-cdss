@@ -7,7 +7,6 @@ import {
   X,
   Plus,
   ZoomIn,
-  MapPin,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,55 +37,91 @@ const TAB_DEFS = [
 const PLACEHOLDER_DZI =
   "https://openseadragon.github.io/example-images/duomo/duomo.dzi";
 
-function gcsToPublicUrl(gcsPath) {
-  if (!gcsPath || !gcsPath.startsWith("gs://")) return null;
-  const withoutScheme = gcsPath.replace("gs://", "");
-  const [bucket, ...rest] = withoutScheme.split("/");
-  return `https://storage.googleapis.com/${bucket}/${rest.join("/")}`;
-}
-const MOCK_ABSTAINED_ROIS = [
-  { id: "roi_01", xPercent: 32, yPercent: 40, reason: "Stroma 경계 흐림" },
-  { id: "roi_02", xPercent: 61, yPercent: 58, reason: "염색 아티팩트 의심" },
-];
 
-function SeadragonViewer({ showRois, imageUrl }) {
+
+
+function SeadragonViewer({ imageUrl }) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    viewerRef.current = OpenSeadragon({
-      element: containerRef.current,
-      tileSources: imageUrl ? { type: "image", url: imageUrl } : PLACEHOLDER_DZI,
-      prefixUrl:
-        "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/",
-      drawer: "canvas",
-      showNavigationControl: true,
-      gestureSettingsMouse: { scrollToZoom: true },
-    });
-    return () => viewerRef.current?.destroy();
+    ...
   }, [imageUrl]);
+
+  if (loadFailed) {
+    return ( ... );
+  }
+
   return (
     <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <div ref={containerRef} className="h-full w-full bg-black" />
-      {showRois &&
-        MOCK_ABSTAINED_ROIS.map((roi) => (
-          <div
-            key={roi.id}
-            title={roi.reason}
-            className="absolute cursor-pointer text-seg-abstain drop-shadow-md"
-            style={{
-              left: `${roi.xPercent}%`,
-              top: `${roi.yPercent}%`,
-              transform: "translate(-50%, -100%)",
-            }}
-          >
-            <MapPin size={22} fill="oklch(from currentColor l c h / 0.3)" />
-          </div>
-        ))}
     </div>
   );
 }
+function SegmentationOverlay({ imageUrl, maskUrl }) {
+  const [opacity, setOpacity] = useState(0.5);
+  const [showMask, setShowMask] = useState(true);
 
+  if (!imageUrl || !maskUrl) {
+    return (
+      <div className={cn(imgBoxClass, "relative")}>
+        [조직 분할 및 오버레이 레이어]
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          {!imageUrl
+            ? "원본 이미지 준비중"
+            : "마스크 이미지가 아직 없습니다 (이 케이스는 세그멘테이션 결과 미생성)"}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-border bg-black">
+        <img
+          src={imageUrl}
+          alt="원본 조직 이미지"
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+        {showMask && (
+          <img
+            src={maskUrl}
+            alt="세그멘테이션 마스크"
+            className="absolute inset-0 h-full w-full object-contain"
+            style={{ opacity }}
+          />
+        )}
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-4">
+        <label className="flex items-center gap-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={showMask}
+            onChange={(e) => setShowMask(e.target.checked)}
+          />
+          오버레이 켜기
+        </label>
+        <div className="flex flex-1 items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">마스크 투명도</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={opacity}
+            onChange={(e) => setOpacity(Number(e.target.value))}
+            disabled={!showMask}
+            className="flex-1"
+          />
+          <span className="w-9 text-right text-[11px] text-muted-foreground">
+            {Math.round(opacity * 100)}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MOCK_STATS = [
   { label: "inflammatory 픽셀", value: "81,204" },
@@ -141,12 +176,13 @@ export default function DetailScreen({
       }
     : MOCK_RESULT;
 
-  const realImageUrl = gcsToPublicUrl(realJob?.gcs_image_path);
-  const [openTabs, setOpenTabs] = useState(["original", "seg", "compare"]);
+  const realImageUrl = realJob?.image_url ?? null;
+  const realMaskUrl = realJob?.result_url ?? null;
+  const [openTabs, setOpenTabs] = useState(["original", "seg", "uncertainty", "compare"]);
   const [activeTab, setActiveTab] = useState("original");
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [showRois, setShowRois] = useState(true);
+
 
   const availableToAdd = TAB_DEFS.filter((t) => !openTabs.includes(t.id));
 
@@ -327,40 +363,15 @@ export default function DetailScreen({
 
              {activeTab === "original" && (
                 <div>
-                  <SeadragonViewer showRois={showRois} imageUrl={realImageUrl} />
-                  <div className="mt-2 flex items-center justify-between">
-                    <label className="flex items-center gap-1.5 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={showRois}
-                        onChange={(e) => setShowRois(e.target.checked)}
-                      />
-                      기권 부위(Abstained ROI) 표시
-                    </label>
-                    <span className="text-[10px] text-muted-foreground">
-                      {realImageUrl
-                        ? "실제 업로드 이미지 · 기권 부위 좌표는 근사치"
-                        : "※ 데모용 이미지 · 마커 위치는 근사치 (실제 좌표 연동 전)"}
-                    </span>
+                  <SeadragonViewer imageUrl={realImageUrl} />
+                  <div className="mt-2 text-right text-[10px] text-muted-foreground">
+                    {realImageUrl ? "실제 업로드 이미지" : "※ 데모용 이미지 (실제 이미지 연동 전)"}
                   </div>
                 </div>
               )}
 
-              {activeTab === "seg" && (
-                <div className={cn(imgBoxClass, "relative")}>
-                  [조직 분할 및 오버레이 레이어]
-                  <div className="absolute bottom-3 right-3 flex gap-3 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px]">
-                    <label>
-                      <input type="checkbox" defaultChecked /> 종양 부위
-                    </label>
-                    <label>
-                      <input type="checkbox" defaultChecked /> 기질 영역
-                    </label>
-                    <label>
-                      <input type="checkbox" /> 오버레이 켜기
-                    </label>
-                  </div>
-                </div>
+             {activeTab === "seg" && (
+                <SegmentationOverlay imageUrl={realImageUrl} maskUrl={realMaskUrl} />
               )}
 
               {activeTab === "uncertainty" && (
@@ -377,8 +388,16 @@ export default function DetailScreen({
                     <div className="mb-1.5 text-xs font-semibold">
                       원본 이미지
                     </div>
-                    <div className={cn(imgBoxClass, "min-h-[260px]")}>
-                      [H&E 원본]
+                    <div className={cn(imgBoxClass, "min-h-[260px] overflow-hidden p-0")}>
+                      {realImageUrl ? (
+                        <img
+                          src={realImageUrl}
+                          alt="원본 이미지"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        "[H&E 원본]"
+                      )}
                     </div>
                     <div className="mt-1.5 text-right">
                       <Button
@@ -394,8 +413,16 @@ export default function DetailScreen({
                     <div className="mb-1.5 text-xs font-semibold">
                       세그멘테이션 이미지
                     </div>
-                    <div className={cn(imgBoxClass, "min-h-[260px]")}>
-                      [분할 오버레이]
+                    <div className={cn(imgBoxClass, "min-h-[260px] overflow-hidden p-0")}>
+                      {realMaskUrl ? (
+                        <img
+                          src={realMaskUrl}
+                          alt="세그멘테이션 마스크"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        "[분할 오버레이 준비중]"
+                      )}
                     </div>
                     <div className="mt-1.5 text-right">
                       <Button
@@ -405,17 +432,6 @@ export default function DetailScreen({
                       >
                         <ZoomIn size={13} /> 돋보기
                       </Button>
-                    </div>
-                    <div className="mt-2 flex justify-end gap-3 text-[11px]">
-                      <label>
-                        <input type="checkbox" defaultChecked /> 종양 부위
-                      </label>
-                      <label>
-                        <input type="checkbox" defaultChecked /> 기질 영역
-                      </label>
-                      <label>
-                        <input type="checkbox" /> 오버레이 켜기
-                      </label>
                     </div>
                   </div>
                 </div>
