@@ -57,6 +57,10 @@ CONFORMAL_Q = {
     # "unet_v1": <미보정>,        # 선택지로 노출하려면 calibration 선행 필수
 }
 
+# q를 보정할 때 사용한 MC Dropout 회차 수. GPU 서비스의 MC_DROPOUT_N과 반드시 같아야 한다.
+# 회차가 달라지면 sTIL 분포의 폭이 달라져 같은 q로는 목표 커버리지가 나오지 않는다.
+CALIBRATED_MC_N = 20
+
 
 def get_conformal_q(model_name: str) -> float:
     """model_name의 보정상수를 반환. 보정 안 된 모델이면 **조용히 넘어가지 않고 막는다**.
@@ -73,8 +77,25 @@ def get_conformal_q(model_name: str) -> float:
     return CONFORMAL_Q[model_name]
 
 
+def check_mc_samples(n_pass: int):
+    """GPU가 돌려준 MC 회차 수가 보정 조건과 같은지 확인. 다르면 **막는다**.
+
+    미보정 모델을 차단하는 것과 같은 이유다. 회차가 다른 채로 계산된 구간은
+    겉보기엔 정상이라 오류를 알아챌 수 없고, 그 구간으로 임상 컷오프 판정이 갈린다.
+    """
+    if n_pass != CALIBRATED_MC_N:
+        raise ValueError(
+            f"MC Dropout 회차 불일치: GPU 응답 {n_pass}회 vs q 보정 기준 "
+            f"{CALIBRATED_MC_N}회. q={CONFORMAL_Q.get('attention_unet_v1')}는 "
+            f"{CALIBRATED_MC_N}회 기준으로 산출된 값이라 그대로 쓰면 커버리지 보장이 "
+            f"깨집니다. GPU 서비스의 MC_DROPOUT_N을 {CALIBRATED_MC_N}으로 맞추거나, "
+            f"{n_pass}회 기준으로 q를 다시 보정해야 합니다."
+        )
+
+
 def compute_stats(mc_stack: np.ndarray, model_name: str) -> dict:
     """1단계: sTIL + Conformal 계산 (til_conformal.py). MedGemma 호출 전 단계."""
+    check_mc_samples(mc_stack.shape[0])
     return compute_stil_and_conformal(mc_stack, get_conformal_q(model_name))
 
 
@@ -99,7 +120,7 @@ def generate_report(stats: dict, seg_image: Image.Image,
         seg_image,
         stil=stats["stil_value"], lower=stats["lower"], upper=stats["upper"],
         abstain=stats["abstain"], model_used=model_name,
-        class_composition=composition,
+        class_composition=composition, job_id=case_id,
     )
 
     return build_medgemma_report(
@@ -142,6 +163,23 @@ def download_gcs_blob(gcs_uri: str) -> bytes:
     bucket_name, blob_path = _parse_gcs_uri(gcs_uri)
     bucket = storage.Client().bucket(bucket_name)
     return bucket.blob(blob_path).download_as_bytes()
+
+
+def upload_gcs_blob(gcs_uri: str, data: bytes, content_type: str = "image/png"):
+    """GCS에 바이트를 업로드한다 (세그 결과 이미지 저장용)."""
+    bucket_name, blob_path = _parse_gcs_uri(gcs_uri)
+    blob = storage.Client().bucket(bucket_name).blob(blob_path)
+    blob.upload_from_string(data, content_type=content_type)
+
+
+def save_seg_image(seg_image: Image.Image, gcs_uri: str):
+    """렌더링한 세그멘테이션 이미지를 payload의 gcs_result_path에 쓴다.
+
+    프론트 화면 4(결과 상세)의 '세그멘테이션/오버레이' 탭이 이 파일을 읽는다.
+    """
+    buf = io.BytesIO()
+    seg_image.save(buf, format="PNG")
+    upload_gcs_blob(gcs_uri, buf.getvalue())
 
 
 def load_source_image(gcs_uri: str) -> np.ndarray:
@@ -191,8 +229,10 @@ def update_job(job_id: str, **fields):
 def run_job(payload: dict):
     """Cloud Run Job 진입점.
 
-    payload (윤수용 확정 — 키 3개만 온다):
-        { "job_id", "model_name", "gcs_image_path" }
+    payload (윤수용 아키텍처 문서 2.4절):
+        { "job_id", "model_name",
+          "gcs_image_path",   # 원본을 여기서 읽고
+          "gcs_result_path" } # 세그 결과 이미지를 여기에 쓴다
 
     ⚠️ 세그멘테이션 결과(mc_stack)는 파일로 오지 않는다. 워커가 원본을 받아
        타일로 잘라 GPU 서비스를 직접 호출하고 재조립한다.
@@ -209,6 +249,7 @@ def run_job(payload: dict):
     del image   # 원본은 최대 141MB — 이후 안 쓰므로 일찍 놓아준다
 
     seg_image = render_seg_image(mc_stack)
+    save_seg_image(seg_image, payload["gcs_result_path"])
 
     # ── 2) sTIL + Conformal ────────────────────────────────────────────
     stats = compute_stats(mc_stack, model_name)

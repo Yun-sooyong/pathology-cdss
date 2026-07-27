@@ -13,7 +13,7 @@
 | `til_conformal.py` | sTIL + Conformal + 클래스 구성비 (순수 계산) |
 | `medgemma_report.py` | MedGemma `/medgemma` HTTP 호출 + 5절 JSON 조립 + 재시도/폴백 |
 | `Dockerfile` | CPU 전용 경량 이미지 (모델 가중치·CUDA 없음) |
-| `test_*.py` | 35개 테스트 (계산 18 · 워커 12 · 세그 클라이언트 5) |
+| `test_*.py` | 43개 테스트 (계산 18 · 워커 16 · 세그 클라이언트 9) |
 
 ## 배포 (확정)
 
@@ -26,7 +26,7 @@ gcloud run jobs deploy cdss-worker \
 Job 이름 `cdss-worker` / 리전 `asia-northeast3`(서울) — Django가 이 값으로
 `:run` 엔드포인트를 조립하므로 바꾸면 안 됩니다.
 
-## 🔴 최일운 (Mosec) 에게 요청 — 내가 받는 입력
+## 🔴 서정은 (segmentation-mosec / GPU 서빙) 에게 요청 — 내가 받는 입력
 
 **✅ 2026-07-27 확정 — 워커가 GPU 서비스를 직접 호출한다 (파일 전달 아님).**
 Cloud Run 요청 32MB 제한 때문에 원본(최대 141MB)을 통째로 못 보내므로,
@@ -41,14 +41,20 @@ POST {SEGMENTATION_URL}/inference
   resp: msgpack{job_id, model_name_used, mc_samples, height, width, num_classes, masks(npz)}
 ```
 
-**🔴 최일운 확인 필요 3가지:**
+**🔴 서정은 확인 필요:**
 1. **가장자리 타일 패딩** — 원본이 512 배수가 아니라 가장자리 타일이 작습니다.
    워커는 **512로 zero-padding해서 보내고 돌아온 마스크를 원래 크기로 잘라** 씁니다.
    서비스가 비정사각형 입력을 그대로 받는다면 패딩을 빼는 게 나으니 알려주세요.
-2. **npz 안의 배열 키 이름** — 현재 `masks` → `arr_0` → 첫 배열 순으로 찾고 있습니다.
-   확정된 키가 있으면 알려주세요.
+2. 🔴 **`MC_DROPOUT_N`을 25 → 20으로 변경 필요 (가장 급함).**
+   현재 서비스 설정은 25회인데, q=19.63은 **20회 기준으로 보정된 값**입니다
+   (최일운 최종 보고 6절: "기획안 25회 → 최종 20회"). 25회 결과에 그대로 쓰면
+   예측구간이 겉보기엔 정상인데 커버리지 보장이 깨집니다. 워커는 25회를 받으면
+   에러로 막습니다 — env var 한 줄 수정이 q 재보정보다 훨씬 쌉니다.
 3. **MC 회차 수 일관성** — 타일마다 `mc_samples`가 다르면 sTIL 분포가 왜곡되므로
    워커가 에러로 막습니다. 모든 타일에서 동일해야 합니다.
+
+> npz 배열 키 이름은 **더 이상 안 물어봐도 됩니다** — 배열이 하나면 이름과 무관하게
+> 동작하고, 여러 개인데 아는 키가 없으면 추측하지 않고 에러로 알려줍니다.
 
 | 입력 | 타입 | 설명 |
 |------|------|------|
@@ -59,16 +65,25 @@ POST {SEGMENTATION_URL}/inference
 직접 렌더링합니다(`worker.render_seg_image()`). 구성비 수치와 MedGemma가 보는
 그림이 같은 마스크에서 나오므로 서로 어긋나지 않습니다.
 
-## 🔴 MedGemma — GPU 서비스 `/medgemma` 라우트 (최일운 확인 필요)
+## 🔵 MedGemma — GPU 서비스 `/medgemma` 라우트 (**내가 만든다**)
 
-MedGemma가 GPU 서비스로 옮겨지면서 워커는 HTTP로만 호출합니다. **요청/응답 규격
-미확정** — 현재 워커는 아래를 가정하고 있습니다.
+아키텍처 문서 2.5절 기준 이 라우트의 담당은 **박검모(나)**다. 서정은에게 규격을
+물어보는 게 아니라, **내가 아래 규격으로 라우트를 구현해 서정은의 GPU 서비스에
+얹는 것**이다. 서정은에게 필요한 건 "라우트를 추가해도 되는지 + VRAM 여유"뿐.
 
 ```
 POST {MEDGEMMA_URL}
   body: {"system": str, "text": str, "image": <base64 PNG>, "max_new_tokens": 500}
   resp: {"generated_text": str}
 ```
+
+워커 호출부(`medgemma_report.call_medgemma()`)는 이미 이 규격으로 구현돼 있으므로,
+GPU 쪽 라우트만 같은 규격으로 만들면 양쪽이 맞는다.
+
+**🔴 서정은에게 확인할 것 (규격이 아니라 수용 가능 여부):**
+- L4 24GB에 세그 U-Net + MedGemma 4B(BF16 ~8GB)를 함께 올릴 때 VRAM 여유가 있는지
+- mosec에 두 번째 파이프라인(라우트)을 등록하는 방식 — 서비스 코드 구조 공유 필요
+- VRAM이 빠듯하면 int8 양자화 필요 → **양자화 시 sTIL 할루시네이션 재검증 필수**
 
 **⚠️ 프롬프트는 워커가 소유합니다.** `SYSTEM_PROMPT`에 sTIL 용어 할루시네이션을
 막는 제약이 들어있고(2026-07-24 실측으로 발견해 추가), 응답 파싱·재시도·폴백도
@@ -91,7 +106,7 @@ q(19.63)로 계산되어 **커버리지 보장이 깨진 채 화면에 나갑니
 **클래스 인덱스 컨벤션 (반드시 일치):**
 `0=tumor, 1=stroma, 2=immune, 3=necrosis, 4=other, 255=ignore`
 
-**✅ 2026-07-24 실제 데이터로 검증 완료** — 최일운의 실제 U-Net 출력 npy
+**✅ 2026-07-24 실제 데이터로 검증 완료** — 모델 학습 쪽(최일운)의 실제 U-Net 출력 npy
 (`unet_TCGA-A2-A3XX-DX1_..._MPP-0.2500.npy`)로 확인:
 - `shape (20, 2529, 3028)`, `dtype uint8`, `unique [0 1 2 3 4]` — 위 기대 스펙과 완전히 일치
 - `compute_stil_and_conformal()`에 그대로 넣어서 `stil_value=4.75, decision="LOW"` 정상 산출
@@ -170,9 +185,10 @@ sTIL이 0%/100% 경계에 가까워 구간이 잘릴 때만 값이 달라집니�
 1. ✅ **확정 (2026-07-24)** — **Job 테이블 쓰기 방법**: **Option B** (워커는 DB 모름, Django API에 HTTP PATCH).
    `worker.update_job(job_id, **fields)` 구현 완료 — `requests.patch(f"{DJANGO_API_BASE}/jobs/{job_id}/", json=fields)`.
    `DJANGO_API_BASE`는 배포 시 실제 Django API 주소로 환경변수 주입 필요 (현재 플레이스홀더).
-2. ✅ **확정 (2026-07-27)** — **페이로드**: 환경변수 `JOB_PAYLOAD`(JSON)로 키 3개.
-   `{"job_id", "model_name", "gcs_image_path"}`. 세그 결과 파일은 오지 않고
-   워커가 원본을 받아 GPU 서비스를 직접 호출합니다. `main.py`에서 필수 키를 검사합니다.
+2. ✅ **확정 (2026-07-27)** — **페이로드**: 환경변수 `JOB_PAYLOAD`(JSON)로 키 4개.
+   `{"job_id", "model_name", "gcs_image_path", "gcs_result_path"}`.
+   세그 결과 파일은 받지 않고 워커가 원본을 읽어 GPU를 직접 호출하며,
+   렌더링한 세그 이미지를 `gcs_result_path`에 씁니다. `main.py`가 필수 키를 검사합니다.
 3. ✅ **해소 (2026-07-27)** — **MedGemma Docker**: MedGemma가 GPU 서비스로 이동하여
    워커 이미지에서 가중치·CUDA가 모두 빠졌습니다. 워커는 CPU 전용 경량 이미지입니다.
 4. ✅ **확정 (2026-07-24)** — **상태 전이**: `status="sTIL 완료"` → MedGemma 후 `status="완료"` 규약대로
@@ -189,7 +205,7 @@ sTIL이 0%/100% 경계에 가까워 구간이 잘릴 때만 값이 달라집니�
   ⚠️ **q는 sigma 배수가 아니라 구간 절반폭(%p) 자체**이며, MC 20회 조건에 묶여 있음 —
   MC 횟수를 바꾸면 q를 다시 보정해야 함.
 - **MedGemma 양자화 판단은 GPU 서비스 쪽으로 넘어감** — 워커가 모델을 들고 있지 않으므로
-  int8 양자화 여부는 최일운이 결정합니다. 다만 **양자화하면 sTIL 할루시네이션 재검증이
+  int8 양자화 여부는 GPU 서빙 담당(서정은)이 결정합니다. 다만 **양자화하면 sTIL 할루시네이션 재검증이
   필요**하다는 점은 전달해야 합니다 (정밀도가 바뀌면 생성 결과가 달라짐).
 - `findings` 프롬프트 품질 — 아직 입력값 재진술 경향. 튜닝 예정.
 - **🔴 할루시네이션 발견 (2026-07-24)**: 실제 npy로 테스트 중 MedGemma가

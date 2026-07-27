@@ -21,7 +21,8 @@ def read_payload() -> dict:
 
     기대 형태:
         JOB_PAYLOAD='{"job_id": "...", "model_name": "attention_unet_v1",
-                      "gcs_image_path": "gs://..."}'
+                      "gcs_image_path": "gs://.../uploads/xxx.png",
+                      "gcs_result_path": "gs://.../results/xxx.png"}'
     """
     raw = os.environ.get("JOB_PAYLOAD")
     if not raw:
@@ -30,7 +31,8 @@ def read_payload() -> dict:
         )
     payload = json.loads(raw)
 
-    missing = [k for k in ("job_id", "model_name", "gcs_image_path") if k not in payload]
+    required = ("job_id", "model_name", "gcs_image_path", "gcs_result_path")
+    missing = [k for k in required if k not in payload]
     if missing:
         raise RuntimeError(f"JOB_PAYLOAD에 필수 키가 없습니다: {missing}")
     return payload

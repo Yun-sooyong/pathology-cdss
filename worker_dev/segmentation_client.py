@@ -24,13 +24,17 @@ TILE_SIZE = int(os.environ.get("TILE_SIZE", "512"))
 REQUEST_TIMEOUT = int(os.environ.get("SEGMENTATION_TIMEOUT", "600"))
 
 
-def fetch_id_token() -> str:
-    """비공개 Cloud Run 서비스 호출용 ID 토큰. Job의 서비스 계정으로 발급된다."""
+def fetch_id_token(audience: str = None) -> str:
+    """비공개 Cloud Run 서비스 호출용 ID 토큰. Job의 서비스 계정으로 발급된다.
+
+    Args:
+        audience: 대상 서비스의 **루트 URL**(경로 제외). 생략 시 세그멘테이션 서비스.
+    """
     import google.auth.transport.requests
     import google.oauth2.id_token
 
     req = google.auth.transport.requests.Request()
-    return google.oauth2.id_token.fetch_id_token(req, SEGMENTATION_URL)
+    return google.oauth2.id_token.fetch_id_token(req, audience or SEGMENTATION_URL)
 
 
 def split_tiles(image: np.ndarray, tile: int = TILE_SIZE):
@@ -73,15 +77,35 @@ def _unpack_masks(resp_bytes: bytes) -> tuple:
     resp = msgpack.unpackb(resp_bytes, raw=False)
     npz = np.load(io.BytesIO(resp["masks"]))
 
-    # 키 이름이 확정 안 되어 있어 알려진 후보를 먼저 보고, 없으면 첫 배열을 쓴다
+    # 키 이름이 확정 안 되어 있어 알려진 후보를 먼저 본다.
     for key in ("masks", "arr_0"):
         if key in npz:
             masks = npz[key]
             break
     else:
+        # 배열이 하나뿐이면 그게 마스크인 게 분명하므로 그대로 쓴다.
+        # 여러 개면 **추측하지 않는다** — 확률맵 같은 다른 배열을 집어도 모양이
+        # 우연히 맞으면 그럴듯한 sTIL이 나오고 아무도 오류를 눈치채지 못한다.
+        if len(npz.files) != 1:
+            raise ValueError(
+                f"npz에서 마스크 배열을 특정할 수 없습니다. 들어있는 키: {npz.files}. "
+                f"'masks' 또는 'arr_0'으로 담아주시거나, 어떤 키가 마스크인지 알려주세요."
+            )
         masks = npz[npz.files[0]]
 
-    return masks.astype(np.uint8, copy=False), resp.get("mc_samples", masks.shape[0])
+    if masks.ndim != 3:
+        raise ValueError(
+            f"마스크는 (N, H, W) 3차원이어야 하는데 {masks.shape}를 받았습니다. "
+            f"4차원이면 argmax 전 확률맵일 가능성이 큽니다 — 클래스 인덱스 마스크가 필요합니다."
+        )
+
+    declared = resp.get("mc_samples")
+    if declared is not None and declared != masks.shape[0]:
+        raise ValueError(
+            f"응답의 mc_samples({declared})와 실제 배열 회차 수({masks.shape[0]})가 다릅니다."
+        )
+
+    return masks.astype(np.uint8, copy=False), masks.shape[0]
 
 
 def call_segmentation(image: np.ndarray, model_name: str, job_id: str,

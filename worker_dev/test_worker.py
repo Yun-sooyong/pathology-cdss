@@ -40,6 +40,38 @@ def test_update_job_raises_on_http_error():
             assert "500" in str(e)
 
 
+def test_check_mc_samples_accepts_calibrated_count():
+    worker.check_mc_samples(worker.CALIBRATED_MC_N)   # 예외 없이 통과해야 함
+
+
+def test_check_mc_samples_rejects_mismatch():
+    """GPU가 25회로 설정돼 있으면 q(20회 기준)와 안 맞으므로 막혀야 한다."""
+    try:
+        worker.check_mc_samples(25)
+        assert False, "회차가 달라도 통과함 — 커버리지 보장이 조용히 깨짐"
+    except ValueError as e:
+        assert "25" in str(e) and "20" in str(e), "양쪽 숫자를 알려줘야 조치 가능"
+
+
+def test_compute_stats_blocks_wrong_mc_count():
+    masks = np.zeros((25, 4, 4), dtype=np.uint8)   # 25회짜리 스택
+    try:
+        worker.compute_stats(masks, "attention_unet_v1")
+        assert False, "25회 스택이 compute_stats를 통과함"
+    except ValueError as e:
+        assert "MC Dropout 회차" in str(e)
+
+
+def test_save_seg_image_uploads_png_to_result_path():
+    img = Image.new("RGB", (4, 4), (10, 20, 30))
+    with patch("worker.upload_gcs_blob") as mock_up:
+        worker.save_seg_image(img, "gs://b/results/x.png")
+    mock_up.assert_called_once()
+    uri, data = mock_up.call_args.args
+    assert uri == "gs://b/results/x.png"
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "PNG로 저장되지 않음"
+
+
 def test_get_conformal_q_returns_calibrated_value():
     assert worker.get_conformal_q("attention_unet_v1") == 19.63
 
