@@ -106,36 +106,48 @@ def _normalize_pixels_chw(rgb_uint8_hwc: np.ndarray) -> np.ndarray:
     chw = arr.transpose(2, 0, 1)  # CHW
     return (chw - _MEAN) / _STD
 
-def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, min_tissue_ratio: float = None):
-    """염색 정규화까지 끝난 원본 이미지를 겹치지 않는 tile_size 조각으로 분할.
+def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, stride: int = None, min_tissue_ratio: float = None):
+    """염색 정규화까지 끝난 원본 이미지를 stride 간격으로 겹치며 타일링한다.
 
-    학습 파이프라인의 extract_patches()와 동일한 규칙:
-      - stride = tile_size (겹침 없음)
-      - tile_size로 안 나누어떨어지는 가장자리는 버림 (패딩하지 않음)
-      - 조직이 거의 없는 타일은 건너뜀 -- 정답 마스크가 없으므로, macenko와 같은
-        OD(광학 밀도) 임계값으로 조직 픽셀 비율을 추정한다.
+    학습 파이프라인(mc_dropout.py)과 동일한 규칙:
+      - stride < tile_size면 겹치는 슬라이딩 윈도우 (기본 50% 겹침)
+      - 마지막 타일은 이미지 경계에 맞춰 안쪽으로 당김 (패딩 없이 전체를 덮음)
+      - 이미지 자체가 tile_size보다 작으면 edge-replicate로 tile_size까지 패딩
+      - 조직이 거의 없는 타일은 건너뜀
 
     Returns:
         [(y, x, tile_chw), ...] -- tile_chw는 픽셀 정규화까지 끝난
-        [C, tile_size, tile_size] float32. (y, x)는 원본 이미지에서 이 타일의
-        좌상단 좌표로, reassemble_masks()가 다시 이어붙일 때 쓴다.
+        [C, tile_size, tile_size] float32. (y, x)는 (패딩 적용된) 이미지 기준
+        좌상단 좌표.
     """
     tile_size = tile_size or config.TILE_SIZE
+    stride = stride or config.TILE_STRIDE
     min_tissue_ratio = config.MIN_TISSUE_RATIO if min_tissue_ratio is None else min_tissue_ratio
 
     h, w, _ = rgb_uint8_hwc.shape
-    if h < tile_size or w < tile_size:
-        raise ValueError(f"이미지 크기({h}x{w})가 타일 크기({tile_size})보다 작음")
+    hp, wp = max(h, tile_size), max(w, tile_size)
+    if (hp, wp) != (h, w):
+        rgb_uint8_hwc = np.pad(
+            rgb_uint8_hwc, ((0, hp - h), (0, wp - w), (0, 0)), mode="edge"
+        )
+
+    ys = _tile_starts(hp, tile_size, stride)
+    xs = _tile_starts(wp, tile_size, stride)
 
     tiles = []
-    for y in range(0, h - tile_size + 1, tile_size):
-        for x in range(0, w - tile_size + 1, tile_size):
+    for y in ys:
+        for x in xs:
             raw_tile = rgb_uint8_hwc[y:y + tile_size, x:x + tile_size]
             od = _rgb_to_od(raw_tile).reshape(-1, 3)
             tissue_ratio = np.any(od > _OD_BACKGROUND_THRESHOLD, axis=1).mean()
             if tissue_ratio < min_tissue_ratio:
                 continue
             tiles.append((y, x, _normalize_pixels_chw(raw_tile)))
+
+    if not tiles:
+        raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
+
+    return tiles
 
     if not tiles:
         raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
@@ -217,3 +229,12 @@ def unpack_masks(data: bytes) -> np.ndarray:
     buf = io.BytesIO(data)
     with np.load(buf) as npz:
         return npz["masks"]
+    
+def _tile_starts(size: int, patch: int, stride: int):
+    """stride 간격의 타일 시작 좌표. 마지막 타일은 경계에 맞춘다."""
+    if size <= patch:
+        return [0]
+    starts = list(range(0, size - patch + 1, stride))
+    if starts[-1] != size - patch:
+        starts.append(size - patch)
+    return starts
