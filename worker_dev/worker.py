@@ -24,8 +24,19 @@ import requests
 from google.cloud import storage
 from PIL import Image
 
-from til_conformal import compute_stil_and_conformal
+from til_conformal import compute_stil_and_conformal, CLASS_NAMES
 from medgemma_report import generate_report_fields, build_medgemma_report
+from segmentation_client import call_segmentation
+
+# 세그멘테이션 시각화 색상 (CLASS_NAMES 순서: tumor/stroma/immune/necrosis/other)
+CLASS_COLORS = [
+    (220, 60, 60),    # tumor   — 붉은색
+    (90, 160, 220),   # stroma  — 푸른색
+    (70, 190, 120),   # immune  — 녹색
+    (120, 90, 160),   # necrosis— 보라색
+    (190, 190, 190),  # other   — 회색
+]
+assert len(CLASS_COLORS) == len(CLASS_NAMES), "색상 수가 클래스 수와 다름"
 
 # Django API 베이스 URL. 배포 시 실제 값으로 교체(환경변수로 주입 예정 — 윤수용 확정 필요).
 DJANGO_API_BASE = os.environ.get("DJANGO_API_BASE", "https://django-api")
@@ -68,7 +79,7 @@ def compute_stats(mc_stack: np.ndarray, model_name: str) -> dict:
 
 
 def generate_report(stats: dict, seg_image: Image.Image,
-                    case_id: str, model_name: str, pipe) -> dict:
+                    case_id: str, model_name: str) -> dict:
     """2단계: stats를 바탕으로 MedGemma 판독 보고서까지 조립.
 
     stats["stil_value"]가 None이면(분모 0) MedGemma까지 가지 않고 기권 보고서만 조립.
@@ -85,7 +96,7 @@ def generate_report(stats: dict, seg_image: Image.Image,
         )
 
     fields = generate_report_fields(
-        pipe, seg_image,
+        seg_image,
         stil=stats["stil_value"], lower=stats["lower"], upper=stats["upper"],
         abstain=stats["abstain"], model_used=model_name,
         class_composition=composition,
@@ -100,21 +111,20 @@ def generate_report(stats: dict, seg_image: Image.Image,
 
 
 def process_case(mc_stack: np.ndarray, seg_image: Image.Image,
-                 case_id: str, model_name: str, pipe) -> dict:
+                 case_id: str, model_name: str) -> dict:
     """케이스 1건 처리: sTIL/Conformal 계산 -> MedGemma 보고서 생성 -> 최종 JSON.
 
     Args:
-        mc_stack: (N, H, W) MC-Dropout 세그마스크 스택 (Mosec 산출, 값 0~4/255)
+        mc_stack: (N, H, W) MC-Dropout 세그마스크 스택 (값 0~4/255)
         seg_image: 세그멘테이션 결과 이미지 (MedGemma 입력용 PIL.Image)
         case_id: Job id
-        model_name: "unet_v1" | "attention_unet_v1"
-        pipe: 빌드타임 로드된 medgemma-4b-it 파이프라인
+        model_name: "attention_unet_v1"
 
     Returns:
         Job.medgemma_report에 저장할 5절 규격 판독 보고서 dict
     """
     stats = compute_stats(mc_stack, model_name)
-    return generate_report(stats, seg_image, case_id, model_name, pipe)
+    return generate_report(stats, seg_image, case_id, model_name)
 
 
 def _parse_gcs_uri(gcs_uri: str) -> tuple:
@@ -134,14 +144,33 @@ def download_gcs_blob(gcs_uri: str) -> bytes:
     return bucket.blob(blob_path).download_as_bytes()
 
 
-def load_mc_stack(gcs_uri: str) -> np.ndarray:
-    """GCS의 .npy 파일 -> mc_stack (N, H, W) uint8 배열."""
-    return np.load(io.BytesIO(download_gcs_blob(gcs_uri)))
+def load_source_image(gcs_uri: str) -> np.ndarray:
+    """GCS의 원본 병리 이미지 -> (H, W, 3) uint8 배열 (세그멘테이션 입력용)."""
+    img = Image.open(io.BytesIO(download_gcs_blob(gcs_uri))).convert("RGB")
+    return np.asarray(img, dtype=np.uint8)
 
 
-def load_seg_image(gcs_uri: str) -> Image.Image:
-    """GCS의 이미지 파일 -> PIL.Image (MedGemma 입력용)."""
-    return Image.open(io.BytesIO(download_gcs_blob(gcs_uri))).convert("RGB")
+def render_seg_image(mc_stack: np.ndarray) -> Image.Image:
+    """mc_stack의 다수결 마스크를 색상 이미지로 렌더링 (MedGemma 입력용).
+
+    구성비(class_composition)와 같은 다수결 마스크를 쓰므로, MedGemma가 보는 그림과
+    보고서에 실리는 구성비 수치가 서로 어긋나지 않는다.
+    """
+    n_pass = mc_stack.shape[0]
+    votes = np.zeros((len(CLASS_COLORS),) + mc_stack.shape[1:], dtype=np.uint16)
+    for k in range(n_pass):
+        frame = mc_stack[k]
+        for idx in range(len(CLASS_COLORS)):
+            votes[idx] += (frame == idx)
+
+    consensus = votes.argmax(axis=0)
+    rgb = np.zeros(consensus.shape + (3,), dtype=np.uint8)
+    for idx, color in enumerate(CLASS_COLORS):
+        rgb[consensus == idx] = color
+
+    # 실제 클래스 득표가 과반이 아닌 픽셀(=ignore 우세)은 검게 둔다
+    rgb[votes.sum(axis=0) * 2 <= n_pass] = (0, 0, 0)
+    return Image.fromarray(rgb)
 
 
 def update_job(job_id: str, **fields):
@@ -159,26 +188,33 @@ def update_job(job_id: str, **fields):
     return resp.json()
 
 
-def run_job(payload: dict, pipe):
-    """Cloud Run Job 진입점 (배포 시 사용).
+def run_job(payload: dict):
+    """Cloud Run Job 진입점.
 
-    payload 예시(Cloud Tasks가 넘겨줄 것으로 예상 — 정확한 필드명은 윤수용과 계속 협의 중):
-        { "job_id", "model_name", "gcs_result_path"(세그 이미지 경로), "mc_stack_path" }
+    payload (윤수용 확정 — 키 3개만 온다):
+        { "job_id", "model_name", "gcs_image_path" }
+
+    ⚠️ 세그멘테이션 결과(mc_stack)는 파일로 오지 않는다. 워커가 원본을 받아
+       타일로 잘라 GPU 서비스를 직접 호출하고 재조립한다.
     """
     job_id = payload["job_id"]
     model_name = payload["model_name"]
 
-    mc_stack = load_mc_stack(payload["mc_stack_path"])
-    seg_image = load_seg_image(payload["gcs_result_path"])
+    # 미보정 모델이면 GPU를 부르기 전에 여기서 막힌다 (헛돈 쓰지 않도록 먼저 검사)
+    get_conformal_q(model_name)
 
+    # ── 1) 원본 -> 타일 분할 -> 세그멘테이션 호출 -> mc_stack 재조립 ────
+    image = load_source_image(payload["gcs_image_path"])
+    mc_stack = call_segmentation(image, model_name=model_name, job_id=job_id)
+    del image   # 원본은 최대 141MB — 이후 안 쓰므로 일찍 놓아준다
+
+    seg_image = render_seg_image(mc_stack)
+
+    # ── 2) sTIL + Conformal ────────────────────────────────────────────
     stats = compute_stats(mc_stack, model_name)
-
-    # ── sTIL/Conformal 계산 완료 -> 1차 Job 업데이트 ────────────────────
     update_job(job_id, status="sTIL 완료",
                stil_value=stats["stil_value"], cp_value=stats["cp_value"])
 
-    report = generate_report(stats, seg_image, case_id=job_id,
-                             model_name=model_name, pipe=pipe)
-
-    # ── MedGemma 보고서까지 완료 -> 최종 Job 업데이트 ───────────────────
+    # ── 3) MedGemma 판독 보고서 (GPU 서비스 HTTP 호출) ──────────────────
+    report = generate_report(stats, seg_image, case_id=job_id, model_name=model_name)
     update_job(job_id, status="완료", medgemma_report=report)

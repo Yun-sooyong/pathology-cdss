@@ -7,20 +7,74 @@
 
 | 파일 | 역할 |
 |------|------|
-| `til_conformal.py` | sTIL + Conformal Prediction 계산 (GPU 불필요, 순수 통계) |
-| `medgemma_report.py` | MedGemma 호출 + 5절 규격 JSON 조립 + 파싱 재시도/폴백 |
-| `worker.py` | 진입점 — 위 둘을 엮어 케이스 1건 처리 |
-| `test_til_conformal.py` | 계산 로직 검증 (9개 테스트, 전부 통과) |
+| `main.py` | Cloud Run Job 진입점 — `JOB_PAYLOAD` 환경변수를 읽어 `run_job()` 호출 |
+| `worker.py` | 케이스 1건 처리 흐름 + Job 테이블 업데이트 |
+| `segmentation_client.py` | 원본 타일 분할 → GPU `/inference` 호출 → `mc_stack` 재조립 |
+| `til_conformal.py` | sTIL + Conformal + 클래스 구성비 (순수 계산) |
+| `medgemma_report.py` | MedGemma `/medgemma` HTTP 호출 + 5절 JSON 조립 + 재시도/폴백 |
+| `Dockerfile` | CPU 전용 경량 이미지 (모델 가중치·CUDA 없음) |
+| `test_*.py` | 35개 테스트 (계산 18 · 워커 12 · 세그 클라이언트 5) |
+
+## 배포 (확정)
+
+```bash
+gcloud run jobs deploy cdss-worker \
+  --source . --region asia-northeast3 \
+  --set-env-vars DJANGO_API_BASE=https://bcss-api-XXXXXXXXXX.asia-northeast3.run.app/api \
+  --task-timeout 3600 --max-retries 3
+```
+Job 이름 `cdss-worker` / 리전 `asia-northeast3`(서울) — Django가 이 값으로
+`:run` 엔드포인트를 조립하므로 바꾸면 안 됩니다.
 
 ## 🔴 최일운 (Mosec) 에게 요청 — 내가 받는 입력
 
-`worker.process_case()`가 기대하는 것:
+**✅ 2026-07-27 확정 — 워커가 GPU 서비스를 직접 호출한다 (파일 전달 아님).**
+Cloud Run 요청 32MB 제한 때문에 원본(최대 141MB)을 통째로 못 보내므로,
+워커가 **512 타일로 잘라** `/inference`를 여러 번 호출하고 `mc_stack`을 재조립합니다.
+구현: `segmentation_client.call_segmentation()`.
+
+```
+POST {SEGMENTATION_URL}/inference
+  Content-Type: application/msgpack
+  Authorization: Bearer <ID 토큰>     # 비공개 서비스
+  body: msgpack{job_id, image(PNG bytes), model_name}
+  resp: msgpack{job_id, model_name_used, mc_samples, height, width, num_classes, masks(npz)}
+```
+
+**🔴 최일운 확인 필요 3가지:**
+1. **가장자리 타일 패딩** — 원본이 512 배수가 아니라 가장자리 타일이 작습니다.
+   워커는 **512로 zero-padding해서 보내고 돌아온 마스크를 원래 크기로 잘라** 씁니다.
+   서비스가 비정사각형 입력을 그대로 받는다면 패딩을 빼는 게 나으니 알려주세요.
+2. **npz 안의 배열 키 이름** — 현재 `masks` → `arr_0` → 첫 배열 순으로 찾고 있습니다.
+   확정된 키가 있으면 알려주세요.
+3. **MC 회차 수 일관성** — 타일마다 `mc_samples`가 다르면 sTIL 분포가 왜곡되므로
+   워커가 에러로 막습니다. 모든 타일에서 동일해야 합니다.
 
 | 입력 | 타입 | 설명 |
 |------|------|------|
-| `mc_stack` | numpy `(N, H, W)` uint8 | MC-Dropout 세그마스크 **N개 스택**. ⚠️ 평균/argmax 하지 말고 **N개 원본 예측을 그대로** 주세요 (불확실도 계산에 필요) |
-| `seg_image` | PIL.Image | MedGemma 입력용 세그멘테이션 결과 이미지 |
+| `mc_stack` (재조립 결과) | numpy `(N, H, W)` uint8 | ⚠️ 평균/argmax 하지 말고 **N개 원본 예측 그대로** (불확실도 계산에 필요) |
 | `model_name` | str | 현재 보정 완료: `attention_unet_v1` **1종** (아래 🔴 참고) |
+
+**`seg_image`는 더 이상 받지 않습니다** — 워커가 `mc_stack`의 다수결 마스크를
+직접 렌더링합니다(`worker.render_seg_image()`). 구성비 수치와 MedGemma가 보는
+그림이 같은 마스크에서 나오므로 서로 어긋나지 않습니다.
+
+## 🔴 MedGemma — GPU 서비스 `/medgemma` 라우트 (최일운 확인 필요)
+
+MedGemma가 GPU 서비스로 옮겨지면서 워커는 HTTP로만 호출합니다. **요청/응답 규격
+미확정** — 현재 워커는 아래를 가정하고 있습니다.
+
+```
+POST {MEDGEMMA_URL}
+  body: {"system": str, "text": str, "image": <base64 PNG>, "max_new_tokens": 500}
+  resp: {"generated_text": str}
+```
+
+**⚠️ 프롬프트는 워커가 소유합니다.** `SYSTEM_PROMPT`에 sTIL 용어 할루시네이션을
+막는 제약이 들어있고(2026-07-24 실측으로 발견해 추가), 응답 파싱·재시도·폴백도
+워커 쪽에 있습니다. **GPU 서비스에서 프롬프트를 자체적으로 만들어 덮어쓰지 마세요** —
+그러면 할루시네이션 방어가 사라집니다. 서비스는 받은 문자열을 그대로 모델에 넣고
+생성 결과를 그대로 돌려주기만 하면 됩니다.
 
 **🔴 모델 선택 기능 관련 (2026-07-26) — 정다희·윤수용 함께 확인 필요**
 추후 병리의가 U-Net / Attention U-Net 등을 골라 비교할 수 있게 선택 UI를 구현할
@@ -43,7 +97,7 @@ q(19.63)로 계산되어 **커버리지 보장이 깨진 채 화면에 나갑니
 - `compute_stil_and_conformal()`에 그대로 넣어서 `stil_value=4.75, decision="LOW"` 정상 산출
 - 포맷 불일치 리스크는 해소됨. 다만 **컷오프(50%) 근처 케이스에서 abstain=True가 뜨는지는 아직 미검증** (이번 샘플은 4.75%라 쉬운 케이스였음) — 근처 값 나는 다른 슬라이드로 한 번 더 확인 필요
 
-**전달 방식 미정:** HTTP 직접 호출 vs GCS 파일 경로. → 윤수용과 함께 확정.
+**✅ 전달 방식 확정:** 워커가 GCS에서 원본을 받아 GPU 서비스를 직접 호출 (위 참조).
 
 ## 🔴 정다희 (React) 에게 제공 — 내가 주는 출력
 
@@ -116,19 +170,16 @@ sTIL이 0%/100% 경계에 가까워 구간이 잘릴 때만 값이 달라집니�
 1. ✅ **확정 (2026-07-24)** — **Job 테이블 쓰기 방법**: **Option B** (워커는 DB 모름, Django API에 HTTP PATCH).
    `worker.update_job(job_id, **fields)` 구현 완료 — `requests.patch(f"{DJANGO_API_BASE}/jobs/{job_id}/", json=fields)`.
    `DJANGO_API_BASE`는 배포 시 실제 Django API 주소로 환경변수 주입 필요 (현재 플레이스홀더).
-2. ✅ **확정 (2026-07-24)** — **mc_stack/seg_image 전달 방식**: **Option B (GCS 경로)**.
-   mc_stack이 실측 약 146MB라 Cloud Tasks 페이로드 100KB 제한상 데이터 직송은 불가능 — 페이로드엔
-   `mc_stack_path`/`gcs_result_path`로 `gs://...` 문자열만 오고, 워커가 직접 다운로드.
-   `worker.load_mc_stack()` / `worker.load_seg_image()` 구현 완료, `run_job()`에 연결 완료.
-   **남은 것:** 정확한 페이로드 필드명(현재 `job_id`/`model_name`/`mc_stack_path`/`gcs_result_path`로 가정 중)과
-   버킷 경로 규칙(`gs://버킷/jobs/{job_id}/...` 등)은 여전히 협의 필요.
-3. **MedGemma Docker**: 가중치를 빌드타임에 포함하는 구조(발표 16번) → Dockerfile 같이 검토
-5. **Cloud Run Job 메모리**: mc_stack `(20, 2529, 3028)` 1건 처리 시 워커 측 실측
-   피크 RSS **약 0.4GB** (입력 0.15GB + 구성비 계산 0.22GB). 여기에 MedGemma 모델이
-   따로 올라가므로, Job 메모리는 그 합보다 여유 있게 잡아주세요.
-   (BF16 로드 시 가중치만 ~8GB — int8 양자화 시 ~4GB, `load_pipeline()` 주석 참고)
+2. ✅ **확정 (2026-07-27)** — **페이로드**: 환경변수 `JOB_PAYLOAD`(JSON)로 키 3개.
+   `{"job_id", "model_name", "gcs_image_path"}`. 세그 결과 파일은 오지 않고
+   워커가 원본을 받아 GPU 서비스를 직접 호출합니다. `main.py`에서 필수 키를 검사합니다.
+3. ✅ **해소 (2026-07-27)** — **MedGemma Docker**: MedGemma가 GPU 서비스로 이동하여
+   워커 이미지에서 가중치·CUDA가 모두 빠졌습니다. 워커는 CPU 전용 경량 이미지입니다.
 4. ✅ **확정 (2026-07-24)** — **상태 전이**: `status="sTIL 완료"` → MedGemma 후 `status="완료"` 규약대로
    `run_job()`에 두 번의 `update_job()` 호출로 구현 완료.
+5. **Cloud Run Job 메모리**: `(20, 2529, 3028)` 기준 워커 실측 피크 RSS **약 0.4GB**.
+   여기에 원본 이미지(최대 141MB)와 타일 응답 버퍼가 더해지므로 **1GB 이상** 권장.
+   모델은 안 올라가므로 GPU/대용량 메모리는 불필요합니다.
 
 ## ⚠️ 아직 placeholder (실제 값으로 교체 필요)
 
@@ -137,11 +188,9 @@ sTIL이 0%/100% 경계에 가까워 구간이 잘릴 때만 값이 달라집니�
   Held-out 6개 기관 45 ROI에서 커버리지 95.6%로 목표 90% 충족 확인.
   ⚠️ **q는 sigma 배수가 아니라 구간 절반폭(%p) 자체**이며, MC 20회 조건에 묶여 있음 —
   MC 횟수를 바꾸면 q를 다시 보정해야 함.
-- `medgemma_report.load_pipeline()` — 현재 BF16 그대로 로드. VRAM이 부족한 배포 환경(예: RTX 3070 8GB)에서는
-  함수 안 bitsandbytes int8 양자화 블록의 주석만 해제하면 바로 적용됨 (`requirements.txt`의 `bitsandbytes`도 주석 해제).
-  **켠 뒤에는 sTIL 할루시네이션 재검증 필수** — 양자화로 정밀도가 바뀌면 생성 결과가 미세하게 달라질 수 있음.
-- `worker.py`의 `CONFORMAL_Q` — 모델별 conformal 보정상수 q가 지금 더미값(1.64).
-  실제로는 calibration 세트로 모델마다 계산해야 함. (전처리 때 만든 CV+ fold 로직 재사용)
+- **MedGemma 양자화 판단은 GPU 서비스 쪽으로 넘어감** — 워커가 모델을 들고 있지 않으므로
+  int8 양자화 여부는 최일운이 결정합니다. 다만 **양자화하면 sTIL 할루시네이션 재검증이
+  필요**하다는 점은 전달해야 합니다 (정밀도가 바뀌면 생성 결과가 달라짐).
 - `findings` 프롬프트 품질 — 아직 입력값 재진술 경향. 튜닝 예정.
 - **🔴 할루시네이션 발견 (2026-07-24)**: 실제 npy로 테스트 중 MedGemma가
   `segmentation_summary`에서 "sTIL(시스플라스크 림프관 세포)"라는 존재하지 않는
