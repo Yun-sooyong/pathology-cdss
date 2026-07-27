@@ -46,11 +46,28 @@ function SeadragonViewer({ imageUrl }) {
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    ...
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- imageUrl 변경 시 이전 에러 상태 초기화 목적, 의도된 동작
+    setLoadFailed(false);
+    viewerRef.current = OpenSeadragon({
+      element: containerRef.current,
+      tileSources: imageUrl ? { type: "image", url: imageUrl } : PLACEHOLDER_DZI,
+      prefixUrl:
+        "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/",
+      drawer: "canvas",
+      showNavigationControl: true,
+      gestureSettingsMouse: { scrollToZoom: true },
+    });
+    viewerRef.current.addHandler("open-failed", () => setLoadFailed(true));
+    return () => viewerRef.current?.destroy();
   }, [imageUrl]);
 
   if (loadFailed) {
-    return ( ... );
+    return (
+      <div className="flex h-[420px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-border bg-background text-center text-sm text-muted-foreground">
+        <span>실제 이미지 접근 권한 준비중입니다.</span>
+        <span className="text-xs">(백엔드 이미지 조회 URL 연동 예정)</span>
+      </div>
+    );
   }
 
   return (
@@ -151,6 +168,7 @@ const imgBoxClass =
 export default function DetailScreen({
   caseId,
   realJob,
+  mockThumbnail,
   pendingQueue = [],
   onNextPendingCase,
   onBackToSummary,
@@ -176,7 +194,7 @@ export default function DetailScreen({
       }
     : MOCK_RESULT;
 
-  const realImageUrl = realJob?.image_url ?? null;
+  const realImageUrl = realJob?.image_url ?? mockThumbnail ?? null;
   const realMaskUrl = realJob?.result_url ?? null;
   const [openTabs, setOpenTabs] = useState(["original", "seg", "uncertainty", "compare"]);
   const [activeTab, setActiveTab] = useState("original");
@@ -365,7 +383,11 @@ export default function DetailScreen({
                 <div>
                   <SeadragonViewer imageUrl={realImageUrl} />
                   <div className="mt-2 text-right text-[10px] text-muted-foreground">
-                    {realImageUrl ? "실제 업로드 이미지" : "※ 데모용 이미지 (실제 이미지 연동 전)"}
+                    {realJob?.image_url
+                      ? "실제 업로드 이미지"
+                      : mockThumbnail
+                        ? "예시 이미지 (실제 케이스 사진 아님)"
+                        : "※ 데모용 이미지 (실제 이미지 연동 전)"}
                   </div>
                 </div>
               )}
