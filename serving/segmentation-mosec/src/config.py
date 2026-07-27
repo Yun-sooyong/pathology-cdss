@@ -63,3 +63,6 @@ IMMUNE_IDX = _int("IMMUNE_IDX", 2)
 # 환경 변수 추가
 ENABLE_MEDGEMMA = _bool("ENABLE_MEDGEMMA", False)
 NUM_MEDGEMMA_WORKERS = _int("NUM_MEDGEMMA_WORKERS", 1)
+
+# 1단계(stride/경계 스냅 + edge-replicate 패딩)
+TILE_STRIDE = _int("TILE_STRIDE", 256)
