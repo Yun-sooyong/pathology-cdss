@@ -195,29 +195,60 @@ def reassemble_masks(tile_results, canvas_shape: tuple, tile_size: int = None, f
 
     return canvas
 
+def _softmax(logits: np.ndarray, axis: int) -> np.ndarray:
+    """오버플로 방지된 softmax."""
+    shifted = logits - np.max(logits, axis=axis, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / np.sum(exp, axis=axis, keepdims=True)
 
 def run_mc_dropout_tiled(
-    model: SegmentationModel, rgb_uint8_hwc: np.ndarray, n: int = None, tile_size: int = None
+    model: SegmentationModel,
+    rgb_uint8_hwc: np.ndarray,
+    n: int = None,
+    tile_size: int = None,
+    stride: int = None,
+    batch: int = 8,
 ) -> np.ndarray:
-    """염색 정규화까지 끝난 원본 이미지를 타일로 잘라, 타일별로 MC Dropout을
-    돌리고, 결과를 원본 크기로 다시 이어붙여 반환한다. server.py가 부를
-    "전체 파이프라인" 진입점이 될 함수.
+    """염색 정규화까지 끝난 원본 이미지를 타일로 잘라, MC Dropout 샘플마다
+    겹친 타일들의 softmax 확률을 평균 내어 재조립한 뒤 argmax하여 반환한다.
 
-    타일 하나당 forward 호출을 한 번씩 한다 (타일 안에서는 여전히 N개를
-    배치로 묶어서 1회 호출). 타일까지 한꺼번에 배치로 묶어 호출 수를 아예
-    1번으로 줄이는 것도 가능하지만, 지금은 정확성/가독성을 우선했어.
+    겹침 블렌딩은 "같은 MC 샘플 안에서"만 한다 -- 서로 다른 MC 샘플의 확률을
+    섞으면 불확실도 추정이 무의미해진다. MC 샘플 k마다: 그 샘플의 모든 타일
+    예측 확률을 (패딩된 크기의) 캔버스에 누적 -> 평균 -> 마지막에 원본 크기로
+    잘라내고 argmax한다.
+
+    타일을 한꺼번에 배치로 묶지 않고 `batch`개씩 쪼개서 처리한다 -- 타일 수가
+    많은 큰 이미지에서 배치가 너무 커져 GPU 메모리를 초과하는 걸 막기 위함.
 
     Returns:
         [N, H, W] uint8 -- 원본 이미지 전체 크기의 MC Dropout 마스크 스택.
     """
+    n = n or config.MC_DROPOUT_N
+    tile_size = tile_size or config.TILE_SIZE
+    stride = stride or config.TILE_STRIDE
     h, w, _ = rgb_uint8_hwc.shape
-    tiles = tile_image(rgb_uint8_hwc, tile_size=tile_size)
+    hp, wp = max(h, tile_size), max(w, tile_size)
 
-    tile_results = [
-        (y, x, run_mc_dropout(model, tile_chw, n=n))
-        for y, x, tile_chw in tiles
-    ]
-    return reassemble_masks(tile_results, canvas_shape=(h, w), tile_size=tile_size)
+    tiles = tile_image(rgb_uint8_hwc, tile_size=tile_size, stride=stride)
+
+    preds = np.empty((n, h, w), dtype=np.uint8)
+    for k in range(n):
+        prob_sum = np.zeros((config.NUM_CLASSES, hp, wp), dtype=np.float32)
+        count = np.zeros((hp, wp), dtype=np.float32)
+
+        for i in range(0, len(tiles), batch):
+            chunk = tiles[i:i + batch]
+            tile_batch = np.stack([tile_chw for _, _, tile_chw in chunk])  # [b, C, tile, tile]
+            logits = model.predict_logits(tile_batch)  # [b, num_classes, tile, tile]
+            probs = _softmax(logits, axis=1)
+            for (y, x, _), tile_prob in zip(chunk, probs):
+                prob_sum[:, y:y + tile_size, x:x + tile_size] += tile_prob
+                count[y:y + tile_size, x:x + tile_size] += 1.0
+
+        prob_avg = prob_sum / np.maximum(count, 1.0)
+        preds[k] = prob_avg[:, :h, :w].argmax(axis=0).astype(np.uint8)  # 패딩 제거 후 argmax
+
+    return preds
 
 def pack_masks(masks: np.ndarray) -> bytes:
     buf = io.BytesIO()
