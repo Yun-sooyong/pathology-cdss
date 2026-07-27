@@ -240,7 +240,7 @@ def run_job(payload: dict):
     # ── 2) sTIL + Conformal ────────────────────────────────────────────
     stats = compute_stats(mc_stack, model_name)
     update_job(job_id, status="sTIL 완료",
-               stil_value=stats["stil_value"], cp_value=stats["cp_value"])
+               stil_value=stats["stil_value"], cp_value=stats["cp_value"],gcs_result_path=payload["gcs_result_path"])
 
     # ── 3) MedGemma 판독 보고서 (GPU 서비스 HTTP 호출) ──────────────────
     report = generate_report(stats, seg_image, case_id=job_id, model_name=model_name)
