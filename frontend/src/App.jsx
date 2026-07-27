@@ -203,6 +203,7 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
   useEffect(() => {
     // Summary에서 이미 job 데이터를 들고 온 경우엔 다시 안 부름
     if (location.state?.job) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- location.state 변경 시 realJob 동기화, 의도된 동작
       setRealJob(location.state.job);
       return;
     }
