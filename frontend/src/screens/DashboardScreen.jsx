@@ -80,11 +80,11 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
 
-  useEffect(() => {
+ useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL 쿼리 변경 시 필터 동기화, 의도된 동작
     setFilter(searchParams.get("filter") === "abstain" ? "abstain" : "all");
     setPage(0);
   }, [searchParams]);
-
   useEffect(() => {
     getCases({ limit: 200 })
       .then(setData)
