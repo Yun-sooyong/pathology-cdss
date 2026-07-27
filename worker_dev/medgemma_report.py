@@ -11,19 +11,21 @@ MedGemma(medgemma-4b-it)를 호출해 5절 규격의 판독 보고서 JSON을 �
    JSON 파싱 실패 시 재시도/폴백 (발표 16·29번 슬라이드 리스크 대응).
 """
 
-import base64
 import io
 import json
 import os
 import re
 from typing import Optional
 
-# MedGemma는 GPU 서비스(Mosec)의 /medgemma 라우트로 옮겨졌다.
+import msgpack
+
+from segmentation_client import SEGMENTATION_URL, fetch_id_token
+
+# MedGemma는 세그멘테이션과 **같은 GPU 서비스**의 /medgemma 라우트다.
 # 워커는 모델을 들고 있지 않고 HTTP로만 호출한다 → 워커는 CPU 전용.
-MEDGEMMA_URL = os.environ.get(
-    "MEDGEMMA_URL",
-    "https://segmentation-mosec-xxxxxxxxxx-as.a.run.app/medgemma",
-)
+# ID 토큰은 서비스 루트 URL 기준으로 발급받아야 하므로 경로와 분리해 둔다.
+MEDGEMMA_SERVICE_URL = os.environ.get("MEDGEMMA_SERVICE_URL", SEGMENTATION_URL)
+MEDGEMMA_URL = os.environ.get("MEDGEMMA_URL", f"{MEDGEMMA_SERVICE_URL}/medgemma")
 MEDGEMMA_TIMEOUT = int(os.environ.get("MEDGEMMA_TIMEOUT", "300"))
 
 DISCLAIMER = "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다."
@@ -76,41 +78,51 @@ def parse_medgemma_json(output: str) -> Optional[dict]:
         return None
 
 
-def _encode_image(image) -> str:
-    """PIL.Image -> base64 PNG 문자열 (HTTP 전송용)."""
+def _encode_png(image) -> bytes:
+    """PIL.Image -> PNG 바이트."""
     buf = io.BytesIO()
     image.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii")
+    return buf.getvalue()
 
 
-def call_medgemma(image, system_prompt: str, user_text: str) -> str:
+def call_medgemma(image, system_prompt: str, user_text: str, job_id: str = "") -> str:
     """GPU 서비스의 /medgemma 라우트를 호출해 생성 텍스트를 받는다.
 
-    ⚠️ 요청/응답 규격은 최일운과 확정 필요. 현재 가정:
-        요청  {"system": str, "text": str, "image": base64 PNG, "max_new_tokens": int}
-        응답  {"generated_text": str}
-    프롬프트(SYSTEM_PROMPT)는 워커가 소유한다 — 할루시네이션 제약이 들어있으므로
-    GPU 쪽에서 임의로 대체하면 안 된다.
+    세그멘테이션과 같은 서비스이므로 **msgpack + ID 토큰** 규약을 그대로 따른다
+    (base64가 아니라 원본 PNG 바이트 — 33% 오버헤드가 없다).
+
+        요청  msgpack{job_id, system, text, image(PNG bytes), max_new_tokens}
+        응답  msgpack{job_id, generated_text}
+
+    ⚠️ 프롬프트는 워커가 소유한다 — 할루시네이션 제약이 들어있으므로 GPU 쪽에서
+       임의로 대체하면 안 된다. 라우트 구현체는 handoff/medgemma_worker.py 참고.
     """
     import requests
 
+    body = msgpack.packb({
+        "job_id": job_id,
+        "system": system_prompt,
+        "text": user_text,
+        "image": _encode_png(image),
+        "max_new_tokens": 500,
+    }, use_bin_type=True)
+
     resp = requests.post(
         MEDGEMMA_URL,
-        json={
-            "system": system_prompt,
-            "text": user_text,
-            "image": _encode_image(image),
-            "max_new_tokens": 500,
+        data=body,
+        headers={
+            "Content-Type": "application/msgpack",
+            "Authorization": f"Bearer {fetch_id_token(MEDGEMMA_SERVICE_URL)}",
         },
         timeout=MEDGEMMA_TIMEOUT,
     )
     resp.raise_for_status()
-    return resp.json()["generated_text"]
+    return msgpack.unpackb(resp.content, raw=False)["generated_text"]
 
 
 def generate_report_fields(image, stil: float, lower: float, upper: float,
                            abstain: bool, model_used: str, max_retries: int = 2,
-                           class_composition=None) -> dict:
+                           class_composition=None, job_id: str = "") -> dict:
     """MedGemma를 호출해 segmentation_summary/findings 두 필드를 얻는다.
     파싱 실패 시 max_retries만큼 재시도, 끝내 실패하면 폴백 텍스트 반환.
 
@@ -122,7 +134,7 @@ def generate_report_fields(image, stil: float, lower: float, upper: float,
     user_text = build_user_text(stil, lower, upper, abstain, model_used, class_composition)
 
     for attempt in range(max_retries + 1):
-        output = call_medgemma(image, SYSTEM_PROMPT, user_text)
+        output = call_medgemma(image, SYSTEM_PROMPT, user_text, job_id=job_id)
         parsed = parse_medgemma_json(output)
         if parsed is not None and "findings" in parsed and "segmentation_summary" in parsed:
             return parsed
