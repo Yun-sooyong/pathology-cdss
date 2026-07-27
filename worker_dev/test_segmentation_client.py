@@ -1,7 +1,7 @@
 """segmentation_client 검증 — 실제 GPU 서비스 없이 msgpack 응답을 목으로 대체.
 
-타일 분할 -> 호출 -> 재조립이 원본 좌표를 정확히 복원하는지가 핵심.
-좌표가 어긋나면 sTIL은 그럴듯한 값으로 나오지만 완전히 틀린 결과가 된다.
+타일 분할은 GPU 서비스가 담당하므로(2026-07-27 변경) 워커 쪽 검증 대상은
+요청 규격(경로 전달·인증)과 응답 해석(npz 배열 특정)이다.
 """
 import io
 from unittest.mock import patch, MagicMock
@@ -27,53 +27,11 @@ def make_response(masks: np.ndarray) -> bytes:
     }, use_bin_type=True)
 
 
-def test_split_tiles_covers_image_exactly():
-    """타일이 원본을 빠짐없이, 겹침 없이 덮어야 한다."""
-    img = np.zeros((300, 250, 3), dtype=np.uint8)
-    seen = np.zeros((300, 250), dtype=np.int32)
-    for top, left, tile in sc.split_tiles(img, tile=128):
-        h, w = tile.shape[:2]
-        seen[top:top + h, left:left + w] += 1
-    assert seen.min() == 1 and seen.max() == 1, "타일이 겹치거나 빈 곳이 있음"
 
 
-def test_encode_png_pads_edge_tiles():
-    """가장자리 타일은 정사각형으로 패딩되고, 원래 크기가 함께 반환된다."""
-    tile = np.zeros((30, 20, 3), dtype=np.uint8)
-    png, h, w = sc._encode_png(tile, 128)
-    assert (h, w) == (30, 20), "원래 크기를 보고해야 잘라 붙일 수 있음"
-    from PIL import Image
-    assert Image.open(io.BytesIO(png)).size == (128, 128), "패딩되지 않음"
 
-
-def test_call_segmentation_reassembles_tile_positions():
-    """각 타일의 마스크가 올바른 좌표에 붙는지 — 타일마다 다른 값을 심어 확인."""
-    img = np.zeros((200, 200, 3), dtype=np.uint8)   # tile=128 -> 2x2 = 4 타일
-    counter = {"n": 0}
-
-    def fake_post(url, data=None, headers=None, timeout=None):
-        # 타일마다 클래스 값을 0,1,2,3으로 다르게 준다
-        val = counter["n"]
-        counter["n"] += 1
-        masks = np.full((3, 128, 128), val, dtype=np.uint8)
-        resp = MagicMock()
-        resp.content = make_response(masks)
-        return resp
-
-    with patch("segmentation_client.fetch_id_token", return_value="tok"), \
-         patch("requests.post", side_effect=fake_post):
-        mc = sc.call_segmentation(img, "attention_unet_v1", "j1", tile=128)
-
-    assert mc.shape == (3, 200, 200), f"원본 크기로 복원돼야 함: {mc.shape}"
-    # 타일 순서는 (0,0) (0,128) (128,0) (128,128)
-    assert mc[0, 0, 0] == 0
-    assert mc[0, 0, 150] == 1
-    assert mc[0, 150, 0] == 2
-    assert mc[0, 150, 150] == 3
-
-
-def test_call_segmentation_sends_auth_and_msgpack():
-    img = np.zeros((10, 10, 3), dtype=np.uint8)
+def test_call_segmentation_sends_path_not_bytes():
+    """이미지 바이트를 싣지 않고 GCS 경로만 보낸다 (Cloud Run 32MB 제한 회피)."""
     captured = {}
 
     def fake_post(url, data=None, headers=None, timeout=None):
@@ -81,19 +39,20 @@ def test_call_segmentation_sends_auth_and_msgpack():
         captured["headers"] = headers
         captured["body"] = msgpack.unpackb(data, raw=False)
         resp = MagicMock()
-        resp.content = make_response(np.zeros((2, 512, 512), dtype=np.uint8))
+        resp.content = make_response(np.zeros((20, 300, 400), dtype=np.uint8))
         return resp
 
     with patch("segmentation_client.fetch_id_token", return_value="tok123"), \
          patch("requests.post", side_effect=fake_post):
-        sc.call_segmentation(img, "attention_unet_v1", "job-9")
+        mc = sc.call_segmentation("gs://b/uploads/x.png", "attention_unet_v1", "job-9")
 
     assert captured["url"].endswith("/inference")
     assert captured["headers"]["Authorization"] == "Bearer tok123"
     assert captured["headers"]["Content-Type"] == "application/msgpack"
-    assert set(captured["body"]) == {"job_id", "image", "model_name"}
-    assert captured["body"]["job_id"] == "job-9"
-    assert captured["body"]["image"][:8] == b"\x89PNG\r\n\x1a\n", "PNG 바이트가 아님"
+    assert set(captured["body"]) == {"job_id", "gcs_image_path", "model_name"}
+    assert captured["body"]["gcs_image_path"] == "gs://b/uploads/x.png"
+    assert "image" not in captured["body"], "원본 바이트를 실으면 32MB 제한에 걸린다"
+    assert mc.shape == (20, 300, 400), "원본 해상도 마스크가 그대로 와야 함"
 
 
 def _npz_response(**arrays) -> bytes:
@@ -142,26 +101,6 @@ def test_unpack_rejects_declared_count_mismatch():
     except ValueError as e:
         assert "mc_samples" in str(e)
 
-
-def test_call_segmentation_rejects_mismatched_mc_samples():
-    """타일마다 MC 회차 수가 다르면 조용히 섞이지 않고 막혀야 한다."""
-    img = np.zeros((200, 200, 3), dtype=np.uint8)
-    counter = {"n": 0}
-
-    def fake_post(url, data=None, headers=None, timeout=None):
-        n = 3 if counter["n"] == 0 else 5     # 두 번째 타일부터 회차 수가 다름
-        counter["n"] += 1
-        resp = MagicMock()
-        resp.content = make_response(np.zeros((n, 128, 128), dtype=np.uint8))
-        return resp
-
-    with patch("segmentation_client.fetch_id_token", return_value="tok"), \
-         patch("requests.post", side_effect=fake_post):
-        try:
-            sc.call_segmentation(img, "attention_unet_v1", "j1", tile=128)
-            assert False, "회차 수가 달라도 통과함 — sTIL 분포가 왜곡될 수 있음"
-        except ValueError as e:
-            assert "MC 회차" in str(e)
 
 
 if __name__ == "__main__":

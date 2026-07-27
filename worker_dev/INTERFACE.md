@@ -9,52 +9,78 @@
 |------|------|
 | `main.py` | Cloud Run Job 진입점 — `JOB_PAYLOAD` 환경변수를 읽어 `run_job()` 호출 |
 | `worker.py` | 케이스 1건 처리 흐름 + Job 테이블 업데이트 |
-| `segmentation_client.py` | 원본 타일 분할 → GPU `/inference` 호출 → `mc_stack` 재조립 |
+| `segmentation_client.py` | GPU `/inference` 호출 (경로 전달) → `mc_stack` 수신 |
 | `til_conformal.py` | sTIL + Conformal + 클래스 구성비 (순수 계산) |
 | `medgemma_report.py` | MedGemma `/medgemma` HTTP 호출 + 5절 JSON 조립 + 재시도/폴백 |
 | `Dockerfile` | CPU 전용 경량 이미지 (모델 가중치·CUDA 없음) |
-| `test_*.py` | 43개 테스트 (계산 18 · 워커 16 · 세그 클라이언트 9) |
+| `test_*.py` | 42개 테스트 (계산 18 · 워커 14 · 세그 5 · MedGemma 5) |
 
-## 배포 (확정)
+## 배포
 
 ```bash
 gcloud run jobs deploy cdss-worker \
   --source . --region asia-northeast3 \
   --set-env-vars DJANGO_API_BASE=https://bcss-api-XXXXXXXXXX.asia-northeast3.run.app/api \
+  --memory 1Gi \
   --task-timeout 3600 --max-retries 3
 ```
 Job 이름 `cdss-worker` / 리전 `asia-northeast3`(서울) — Django가 이 값으로
 `:run` 엔드포인트를 조립하므로 바꾸면 안 됩니다.
 
+### 🔴 배포 전 IAM 확인 (윤수용) — 이거 없으면 런타임에 실패합니다
+
+워커가 쓰는 서비스 계정에 아래 권한이 있어야 합니다. 배포 자체는 성공하는데
+**실행 시점에 403으로 죽기 때문에** 미리 확인해야 합니다.
+
+| 권한 | 대상 | 왜 필요한가 |
+|---|---|---|
+| `roles/run.invoker` | `segmentation-mosec` (싱가포르) | ID 토큰으로 `/inference`·`/medgemma` 호출. **서비스·리전이 달라서 자동으로 안 붙습니다** |
+| `roles/storage.objectCreator` | `...-data` 버킷 | `results/` 세그 이미지 쓰기 |
+
+> 워커는 이제 원본을 읽지 않으므로 `objectViewer`가 필요 없습니다.
+> 대신 **GPU 서비스 SA에 `uploads/` 읽기 권한**이 필요합니다.
+
+```bash
+# 예: 워커 SA에 GPU 서비스 호출 권한 부여
+gcloud run services add-iam-policy-binding segmentation-mosec \
+  --region asia-southeast1 \
+  --member serviceAccount:<워커-SA> \
+  --role roles/run.invoker
+```
+
+Django API 호출은 현재 인증 없이 PATCH하고 있습니다 — `bcss-api`가 비공개면
+거기도 `run.invoker`가 필요하고, 워커 쪽에 토큰 부착 코드를 추가해야 합니다.
+**공개/비공개 여부를 알려주세요.**
+
 ## 🔴 서정은 (segmentation-mosec / GPU 서빙) 에게 요청 — 내가 받는 입력
 
-**✅ 2026-07-27 확정 — 워커가 GPU 서비스를 직접 호출한다 (파일 전달 아님).**
-Cloud Run 요청 32MB 제한 때문에 원본(최대 141MB)을 통째로 못 보내므로,
-워커가 **512 타일로 잘라** `/inference`를 여러 번 호출하고 `mc_stack`을 재조립합니다.
-구현: `segmentation_client.call_segmentation()`.
+**✅ 2026-07-27 확정 — 타일 분할은 GPU 서비스가 한다. 워커는 경로만 넘긴다.**
+
+워커가 미리 자르면 **조직이 이미지 중앙에만 있는 경우 가장자리 타일이 전부
+"조직 없음"으로 거부되어 케이스 전체가 실패**합니다. 서비스가 원본 전체를 보고
+조직 타일을 골라내야 그 판정이 제대로 됩니다.
+
+이미지 바이트도 싣지 않습니다 — Cloud Run 요청 32MB 제한인데 원본은 최대 141MB
+(151장 중 36%가 초과)라 인라인 전송이 불가능합니다. **경로만 보내면 제한이 사라집니다.**
 
 ```
 POST {SEGMENTATION_URL}/inference
   Content-Type: application/msgpack
   Authorization: Bearer <ID 토큰>     # 비공개 서비스
-  body: msgpack{job_id, image(PNG bytes), model_name}
+  body: msgpack{job_id, gcs_image_path, model_name}     ← image 바이트 아님
   resp: msgpack{job_id, model_name_used, mc_samples, height, width, num_classes, masks(npz)}
 ```
 
 **🔴 서정은 확인 필요:**
-1. **가장자리 타일 패딩** — 원본이 512 배수가 아니라 가장자리 타일이 작습니다.
-   워커는 **512로 zero-padding해서 보내고 돌아온 마스크를 원래 크기로 잘라** 씁니다.
-   서비스가 비정사각형 입력을 그대로 받는다면 패딩을 빼는 게 나으니 알려주세요.
-2. 🔴 **`MC_DROPOUT_N`을 25 → 20으로 변경 필요 (가장 급함).**
-   현재 서비스 설정은 25회인데, q=19.63은 **20회 기준으로 보정된 값**입니다
-   (최일운 최종 보고 6절: "기획안 25회 → 최종 20회"). 25회 결과에 그대로 쓰면
-   예측구간이 겉보기엔 정상인데 커버리지 보장이 깨집니다. 워커는 25회를 받으면
-   에러로 막습니다 — env var 한 줄 수정이 q 재보정보다 훨씬 쌉니다.
-3. **MC 회차 수 일관성** — 타일마다 `mc_samples`가 다르면 sTIL 분포가 왜곡되므로
-   워커가 에러로 막습니다. 모든 타일에서 동일해야 합니다.
-
-> npz 배열 키 이름은 **더 이상 안 물어봐도 됩니다** — 배열이 하나면 이름과 무관하게
-> 동작하고, 여러 개인데 아는 키가 없으면 추측하지 않고 에러로 알려줍니다.
+1. **요청 필드 변경** — `image`(PNG bytes) → **`gcs_image_path`**(`gs://...` 문자열).
+   서비스가 GCS에서 직접 읽도록 `Preprocess` 단계를 바꿔주셔야 합니다.
+2. **GPU 서비스 SA에 GCS 읽기 권한 필요** — `roles/storage.objectViewer` on `...-data`.
+   워커는 이제 원본을 읽지 않으므로 반대로 워커 쪽 read 권한은 불필요해집니다.
+3. **응답은 원본 해상도 기준 `(N, H, W)`** — 타일 재조립까지 마친 상태로 주세요.
+   워커는 받은 배열을 그대로 sTIL 계산에 넣습니다.
+4. **타임아웃** — 워커는 요청당 최대 30분(`SEGMENTATION_TIMEOUT=1800`) 대기합니다.
+   실측 7.6초/타일 × 약 30타일(2529×3028) ≈ 4분이라 여유가 있지만, 더 큰 이미지가
+   들어오면 Cloud Run 요청 타임아웃(최대 60분) 안에 끝나는지 확인이 필요합니다.
 
 | 입력 | 타입 | 설명 |
 |------|------|------|
@@ -73,9 +99,13 @@ POST {SEGMENTATION_URL}/inference
 
 ```
 POST {MEDGEMMA_URL}
-  body: {"system": str, "text": str, "image": <base64 PNG>, "max_new_tokens": 500}
-  resp: {"generated_text": str}
+  Content-Type: application/msgpack
+  Authorization: Bearer <ID 토큰>
+  body: msgpack{job_id, system, text, image(PNG bytes), max_new_tokens}
+  resp: msgpack{job_id, generated_text}
 ```
+세그멘테이션과 같은 서비스라 **msgpack + ID 토큰** 규약을 그대로 따릅니다
+(base64가 아니라 원본 PNG 바이트 — 33% 오버헤드 없음).
 
 워커 호출부(`medgemma_report.call_medgemma()`)는 이미 이 규격으로 구현돼 있으므로,
 GPU 쪽 라우트만 같은 규격으로 만들면 양쪽이 맞는다.
@@ -112,7 +142,7 @@ q(19.63)로 계산되어 **커버리지 보장이 깨진 채 화면에 나갑니
 - `compute_stil_and_conformal()`에 그대로 넣어서 `stil_value=4.75, decision="LOW"` 정상 산출
 - 포맷 불일치 리스크는 해소됨. 다만 **컷오프(50%) 근처 케이스에서 abstain=True가 뜨는지는 아직 미검증** (이번 샘플은 4.75%라 쉬운 케이스였음) — 근처 값 나는 다른 슬라이드로 한 번 더 확인 필요
 
-**✅ 전달 방식 확정:** 워커가 GCS에서 원본을 받아 GPU 서비스를 직접 호출 (위 참조).
+**✅ 전달 방식 확정:** 워커는 경로만 전달, GPU 서비스가 GCS에서 직접 읽고 타일링 (위 참조).
 
 ## 🔴 정다희 (React) 에게 제공 — 내가 주는 출력
 

@@ -118,18 +118,6 @@ def test_parse_gcs_uri_rejects_missing_blob_path():
         pass
 
 
-def test_load_source_image_returns_rgb_array():
-    img = Image.new("RGB", (4, 6), color=(1, 2, 3))
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-
-    with patch("worker.download_gcs_blob", return_value=buf.getvalue()) as mock_dl:
-        arr = worker.load_source_image("gs://cdss-bucket/jobs/job-123/src.png")
-
-    mock_dl.assert_called_once_with("gs://cdss-bucket/jobs/job-123/src.png")
-    assert arr.shape == (6, 4, 3), f"(H,W,3) 이어야 함: {arr.shape}"
-    assert arr.dtype == np.uint8
-
 
 def test_render_seg_image_colors_by_majority_class():
     """다수결 클래스에 해당하는 색이 칠해져야 한다."""
@@ -146,21 +134,6 @@ def test_render_seg_image_marks_ignore_black():
     img = worker.render_seg_image(masks)
     assert np.asarray(img).sum() == 0, "ignore 우세 픽셀은 검게 남아야 함"
 
-
-def test_download_gcs_blob_uses_correct_bucket_and_blob():
-    fake_blob = MagicMock()
-    fake_blob.download_as_bytes.return_value = b"fake-bytes"
-    fake_bucket = MagicMock()
-    fake_bucket.blob.return_value = fake_blob
-    fake_client = MagicMock()
-    fake_client.bucket.return_value = fake_bucket
-
-    with patch("worker.storage.Client", return_value=fake_client):
-        result = worker.download_gcs_blob("gs://cdss-bucket/jobs/job-123/mc_stack.npy")
-
-    fake_client.bucket.assert_called_once_with("cdss-bucket")
-    fake_bucket.blob.assert_called_once_with("jobs/job-123/mc_stack.npy")
-    assert result == b"fake-bytes"
 
 
 if __name__ == "__main__":
