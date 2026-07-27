@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TriangleAlert, ArrowUpRight } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -17,16 +17,13 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
   LineChart,
   Line,
   CartesianGrid,
+  XAxis,
+  YAxis,
 } from "recharts";
-import { MOCK_CASES } from "../mockCases";
-import { useSearchParams } from "react-router-dom";
+import { getCases } from "../api";
 
 function KpiCard({ label, value, accent }) {
   return (
@@ -45,40 +42,25 @@ function KpiCard({ label, value, accent }) {
   );
 }
 
-function buildStilBuckets(cases) {
-  const withStil = cases.filter((c) => c.stil !== null);
-  const low = withStil.filter((c) => c.stil < 30).length;
-  const borderline = withStil.filter(
-    (c) => c.stil >= 30 && c.stil <= 70,
-  ).length;
-  const high = withStil.filter((c) => c.stil > 70).length;
+function buildStilBuckets(results) {
+  const withStil = results.filter((c) => c.stil_value != null);
+  const low = withStil.filter((c) => c.stil_value < 30).length;
+  const borderline = withStil.filter((c) => c.stil_value >= 30 && c.stil_value <= 70).length;
+  const high = withStil.filter((c) => c.stil_value > 70).length;
   return [
     { name: "Low (<30%)", value: low, color: "var(--color-muted-foreground)" },
-    {
-      name: "Borderline (30–70%)",
-      value: borderline,
-      color: "var(--color-seg-abstain)",
-    },
+    { name: "Borderline (30–70%)", value: borderline, color: "var(--color-seg-abstain)" },
     { name: "High (>70%)", value: high, color: "var(--color-destructive)" },
   ];
 }
 
-function buildAbstainReasons(cases) {
-  const reasoned = cases.filter((c) => c.abstain === true && c.abstainReason);
-  const counts = {};
-  reasoned.forEach((c) => {
-    counts[c.abstainReason] = (counts[c.abstainReason] || 0) + 1;
-  });
-  return Object.entries(counts).map(([reason, count]) => ({ reason, count }));
-}
-
-// 업로드 일시 기준 오름차순 정렬한 sTIL 추이 (실제 케이스 데이터 그대로 사용, 가짜값 없음)
-function buildStilTrend(cases) {
-  return cases
-    .filter((c) => c.stil !== null)
+function buildStilTrend(results) {
+  return results
+    .filter((c) => c.stil_value != null)
     .slice()
-    .sort((a, b) => new Date(a.uploadedAt) - new Date(b.uploadedAt))
-    .map((c) => ({ id: c.id, stil: c.stil }));
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .slice(-10)
+    .map((c) => ({ id: c.job_id.slice(0, 6), stil: c.stil_value }));
 }
 
 const FILTERS = [
@@ -87,36 +69,59 @@ const FILTERS = [
   { id: "processing", label: "처리중" },
 ];
 
+const PAGE_SIZE = 10;
+
 export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState(
     searchParams.get("filter") === "abstain" ? "abstain" : "all",
   );
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     setFilter(searchParams.get("filter") === "abstain" ? "abstain" : "all");
+    setPage(0);
   }, [searchParams]);
 
-  const needsReview = MOCK_CASES.filter((c) => c.abstain === true);
-  const total = MOCK_CASES.length;
-  const done = MOCK_CASES.filter((c) => c.status === "완료").length;
-  const abstainCount = MOCK_CASES.filter((c) => c.abstain === true).length;
-  const avgStil = (() => {
-    const withStil = MOCK_CASES.filter((c) => c.stil !== null);
-    if (withStil.length === 0) return "—";
-    const avg = withStil.reduce((sum, c) => sum + c.stil, 0) / withStil.length;
-    return `${avg.toFixed(1)}%`;
-  })();
+  useEffect(() => {
+    getCases({ limit: 200 })
+      .then(setData)
+      .catch((err) => setError(err.message));
+  }, []);
 
-  const buckets = buildStilBuckets(MOCK_CASES);
-  const abstainReasons = buildAbstainReasons(MOCK_CASES);
-  const trend = buildStilTrend(MOCK_CASES);
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="pt-4 text-sm text-destructive">
+          케이스 목록을 불러오지 못했습니다: {error}
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const filteredCases = MOCK_CASES.filter((c) => {
+  if (!data) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        불러오는 중…
+      </div>
+    );
+  }
+
+  const { summary, results } = data;
+  const needsReview = results.filter((c) => c.abstain === true);
+  const buckets = buildStilBuckets(results);
+  const trend = buildStilTrend(results);
+
+  const filteredCases = results.filter((c) => {
     if (filter === "abstain") return c.abstain === true;
-    if (filter === "processing") return c.status === "처리중";
+    if (filter === "processing") return c.status === "waiting" || c.status === "processing";
     return true;
   });
+
+  const pagedCases = filteredCases.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE));
 
   return (
     <div className="mx-auto w-full max-w-[1600px]">
@@ -125,136 +130,68 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
         <Button onClick={onNewAnalysis}>+ 새 슬라이드 분석 시작</Button>
       </div>
 
-     {/* KPI: 기권 필터일 땐 AI 기권 카드 하나만 */}
       <div className={`mb-6 grid grid-cols-2 gap-4 ${filter === "abstain" ? "md:grid-cols-1" : "md:grid-cols-4"}`}>
         {filter !== "abstain" && (
           <>
-            <KpiCard label="전체 케이스" value={total} />
-            <KpiCard label="자동 완료" value={done - abstainCount} />
+            <KpiCard label="전체 케이스" value={summary.total} />
+            <KpiCard label="완료" value={summary.done} />
           </>
         )}
-        <KpiCard label={`AI 기권 (${abstainCount}건)`} value={abstainCount} accent />
-        {filter !== "abstain" && <KpiCard label="평균 sTIL" value={avgStil} />}
+        <KpiCard label={`AI 기권 (${summary.abstain}건)`} value={summary.abstain} accent />
+        {filter !== "abstain" && <KpiCard label="오류" value={summary.error} />}
       </div>
 
-     {/* 좌: 기권 원인 분석 (항상) + sTIL 분포(전체 필터일 때만) / 우: 우선검토 + 트렌드(전체 필터일 때만) */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-12">
         <div className={`flex flex-col gap-4 ${filter === "abstain" ? "md:col-span-12" : "md:col-span-7"}`}>
           {filter !== "abstain" && (
             <Card className="transition-colors hover:border-seg-abstain/30">
               <CardHeader>
-                <CardTitle className="text-sm">sTIL 위험도 분포</CardTitle>
+                <CardTitle className="text-sm">상태별 처리 현황</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="h-28 w-28 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={buckets}
-                          dataKey="value"
-                          innerRadius={32}
-                          outerRadius={50}
-                          paddingAngle={2}
-                          stroke="none"
-                        >
-                          {buckets.map((b, i) => (
-                            <Cell key={i} fill={b.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            background: "var(--color-card)",
-                            border: "1px solid var(--color-border)",
-                            borderRadius: 8,
-                            fontSize: 12,
+                <div className="flex flex-col gap-3">
+                  {[
+                    { label: "대기", value: summary.waiting, color: "var(--color-muted-foreground)" },
+                    { label: "처리중", value: summary.processing, color: "var(--color-primary)" },
+                    { label: "sTIL 완료 (판독 대기)", value: summary.stil_done, color: "var(--color-seg-stroma)" },
+                    { label: "완료", value: summary.done, color: "var(--color-seg-abstain)" },
+                    { label: "오류", value: summary.error, color: "var(--color-destructive)" },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center gap-3">
+                      <span className="w-32 shrink-0 text-xs text-muted-foreground">{row.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${summary.total > 0 ? (row.value / summary.total) * 100 : 0}%`,
+                            background: row.color,
                           }}
                         />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex flex-col gap-1.5 text-xs">
-                    {buckets.map((b) => (
-                      <div key={b.name} className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full" style={{ background: b.color }} />
-                        {b.name} <span className="font-mono font-semibold">{b.value}</span>
                       </div>
-                    ))}
-                  </div>
+                      <span className="w-8 text-right text-xs font-mono font-semibold">{row.value}</span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          <Card className="transition-colors hover:border-seg-abstain/30">
+          <Card className="flex-1 transition-colors hover:border-seg-abstain/30">
             <CardHeader>
-              <CardTitle className="text-sm">AI 기권 원인 분석</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {abstainReasons.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">
-                  기권 사유 데이터 없음
-                </div>
-              ) : (
-                <div className="h-32">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={abstainReasons} layout="vertical" margin={{ left: 8 }}>
-                      <XAxis type="number" hide />
-                      <YAxis
-                        type="category"
-                        dataKey="reason"
-                        width={140}
-                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={false}
-                        contentStyle={{
-                          background: "var(--color-card)",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                      />
-                      <Bar dataKey="count" fill="var(--color-seg-abstain)" radius={[0, 4, 4, 0]} barSize={14} activeBar={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 우선 검토 케이스 */}
-        <div className={`flex flex-col gap-4 ${filter === "abstain" ? "md:col-span-12" : "md:col-span-5"}`}>
-          <Card className="border border-seg-abstain/30 bg-seg-abstain/10">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm text-seg-abstain">
-                <TriangleAlert size={16} /> 우선 검토 케이스 {needsReview.length}건
-              </CardTitle>
+              <CardTitle className="text-sm">우선 검토 케이스 {needsReview.length}건</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                {needsReview.map((c) => (
-                  <div key={c.id} className="flex items-center gap-3 rounded-md bg-card px-3 py-2.5">
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded border border-border bg-background">
-                      <img
-                        src={c.thumbnail}
-                        alt="예시 이미지"
-                        className="h-full w-full object-cover opacity-70"
-                      />
-                      <span className="absolute bottom-0 right-0 rounded-tl bg-background/90 px-1 text-[8px] text-muted-foreground">
-                        예시
-                      </span>
+                {needsReview.slice(0, 8).map((c) => (
+                  <div
+                    key={c.job_id}
+                    className="flex items-center justify-between rounded-md bg-seg-abstain/10 px-3 py-2.5"
+                  >
+                    <div className="text-sm">
+                      <strong>{c.job_id.slice(0, 8)}</strong> · sTIL {c.stil_value}% ·{" "}
+                      <span className="text-xs text-muted-foreground">{c.model_name}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{c.id}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        sTIL {c.stil}% · {c.abstainReason ?? "사유 미기재"}
-                      </div>
-                    </div>
-                    <Button variant="secondary" size="sm" onClick={() => onViewCase(c.id, c.thumbnail)}>
+                    <Button variant="secondary" size="sm" onClick={() => onViewCase(c.job_id)}>
                       검증 →
                     </Button>
                   </div>
@@ -264,57 +201,109 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
                     확인이 필요한 케이스가 없습니다.
                   </div>
                 )}
+                {needsReview.length > 8 && (
+                  <div className="text-center text-xs text-muted-foreground">
+                    외 {needsReview.length - 8}건 더 있음 — "기권만 보기" 필터에서 전체 확인 가능
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
+        </div>
 
+       <div className={`flex flex-col gap-4 ${filter === "abstain" ? "md:col-span-12" : "md:col-span-5"}`}>
           {filter !== "abstain" && (
-            <Card className="flex-1 transition-colors hover:border-seg-abstain/30">
-              <CardHeader>
-                <CardTitle className="text-sm">sTIL 추이 (업로드 순)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-32">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                      <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-                      <XAxis
-                        dataKey="id"
-                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        domain={[0, 100]}
-                        tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--color-card)",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="stil"
-                        stroke="var(--color-seg-abstain)"
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+            <>
+              <Card className="transition-colors hover:border-seg-abstain/30">
+                <CardHeader>
+                  <CardTitle className="text-sm">sTIL 위험도 분포</CardTitle>
+                </CardHeader>
+                <CardContent className="flex h-full items-center">
+                  <div className="flex w-full items-center gap-6">
+                    <div className="h-44 w-44 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={buckets}
+                            dataKey="value"
+                            innerRadius={52}
+                            outerRadius={82}
+                            paddingAngle={2}
+                            stroke="none"
+                          >
+                            {buckets.map((b, i) => (
+                              <Cell key={i} fill={b.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              background: "var(--color-card)",
+                              border: "1px solid var(--color-border)",
+                              borderRadius: 8,
+                              fontSize: 12,
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-col gap-2 text-sm">
+                      {buckets.map((b) => (
+                        <div key={b.name} className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
+                          {b.name} <span className="font-mono font-semibold">{b.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="flex-1 transition-colors hover:border-seg-abstain/30">
+                <CardHeader>
+                  <CardTitle className="text-sm">sTIL 추이 (최근 10건)</CardTitle>
+                </CardHeader>
+                <CardContent className="h-full">
+                  <div className="h-full min-h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trend} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                        <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="id"
+                          tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          domain={[0, 100]}
+                          tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "var(--color-card)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="stil"
+                          stroke="var(--color-seg-abstain)"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       </div>
 
-      {/* 케이스 목록 + 필터 탭 */}
       <Card className="transition-colors hover:border-seg-abstain/30">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -323,7 +312,10 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
               {FILTERS.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => setFilter(f.id)}
+                  onClick={() => {
+                    setFilter(f.id);
+                    setPage(0);
+                  }}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     filter === f.id
                       ? "bg-secondary text-foreground"
@@ -340,7 +332,7 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border">
-                <TableHead>케이스 ID</TableHead>
+                <TableHead>Job ID</TableHead>
                 <TableHead>업로드 일시</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>sTIL</TableHead>
@@ -349,39 +341,32 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCases.length === 0 ? (
+              {pagedCases.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="py-6 text-center text-xs text-muted-foreground"
-                  >
+                  <TableCell colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
                     조건에 맞는 케이스가 없습니다.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCases.map((c) => (
+                pagedCases.map((c) => (
                   <TableRow
-                    key={c.id}
+                    key={c.job_id}
                     className={`border-b border-border last:border-0 ${
-                      c.status === "완료"
-                        ? "cursor-pointer hover:bg-accent/40"
-                        : ""
+                      c.status === "done" ? "cursor-pointer hover:bg-accent/40" : ""
                     }`}
-                  onClick={() => c.status === "완료" && onViewCase(c.id, c.thumbnail)}
+                    onClick={() => c.status === "done" && onViewCase(c.job_id)}
                   >
-                    <TableCell className="py-4">{c.id}</TableCell>
-                    <TableCell className="py-4">{c.uploadedAt}</TableCell>
+                    <TableCell className="py-4 font-mono text-xs">{c.job_id.slice(0, 8)}</TableCell>
                     <TableCell className="py-4">
-                      <Badge
-                        variant={
-                          c.status === "처리중" ? "default" : "secondary"
-                        }
-                      >
-                        {c.status}
+                      {new Date(c.created_at).toLocaleString("ko-KR")}
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <Badge variant={c.status === "done" ? "secondary" : "default"}>
+                        {c.status_label}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-4">
-                      {c.stil !== null ? `${c.stil}%` : "—"}
+                      {c.stil_value != null ? `${c.stil_value}%` : "—"}
                     </TableCell>
                     <TableCell className="py-4">
                       {c.abstain === null ? (
@@ -400,9 +385,9 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onViewCase(c.id);
+                          onViewCase(c.job_id);
                         }}
-                        disabled={c.status !== "완료"}
+                        disabled={c.status !== "done"}
                       >
                         상세보기
                       </Button>
@@ -412,6 +397,34 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
               )}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              전체 {filteredCases.length}건 중 {filteredCases.length === 0 ? 0 : page * PAGE_SIZE + 1}–
+              {Math.min((page + 1) * PAGE_SIZE, filteredCases.length)}건
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                이전
+              </Button>
+              <span>
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                다음
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
