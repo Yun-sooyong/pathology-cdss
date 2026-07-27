@@ -86,7 +86,7 @@ class Inference(MsgpackMixin, Worker):
 
 def build_server() -> Server:
     server = Server()
-    server.append_worker(Preprocess, num=config.NUM_PREPROCESS_WOEKERS)
+    server.append_worker(Preprocess, num=config.NUM_PREPROCESS_WORKERS)
     inference_env = [{"CUDA_VISIBLE_DEVICES": config.CUDA_VISIBLE_DEVICES}] * config.NUM_INFERENCE_WORKERS
     server.append_worker(
         Inference,
@@ -95,6 +95,15 @@ def build_server() -> Server:
         max_wait_time=config.MAX_WAIT_TIME_MS,
         env=inference_env,
     )
+    if config.ENABLE_MEDGEMMA:
+        from .medgemma_worker import MedGemmaReport
+        medgemma_env = [{"CUDA_VISIBLE_DEVICES": config.CUDA_VISIBLE_DEVICES}] * config.NUM_MEDGEMMA_WORKERS
+        server.append_worker(
+            MedGemmaReport,
+            num=config.NUM_MEDGEMMA_WORKERS,
+            route="/medgemma",
+            env=medgemma_env,
+        )
     return server
 
 

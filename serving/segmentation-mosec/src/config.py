@@ -43,7 +43,7 @@ MIN_TISSUE_RATIO = _float("MIN_TISSUE_RATIO", 0.1)
 # MC_DROPOUT_N 배칭이랑 다른 말 -> 이건 "동시에 여러 사람이 업로드 했을 경우"
 MAX_BATCH_SIZE = _int("MAX_BATCH_SIZE", 4)
 MAX_WAIT_TIME_MS = _int("MAX_WAIT_TIME_MS", 30)
-NUM_PREPROCESS_WOEKERS = _int("NUM_PREPROCESS_WOEKERS", 2)
+NUM_PREPROCESS_WORKERS = _int("NUM_PREPROCESS_WORKERS", 2)
 NUM_INFERENCE_WORKERS = _int("NUM_INFERENCE_WORKERS", 1)
 
 # 이 프로세스가 몇 번 GPU를 쓸지
@@ -59,3 +59,7 @@ HTTP_PORT = _int("HTTP_PORT", 8000)
 # 0=tumor, 1=stroma, 2=immune, 3=necrosis, 4=other, 255=ignore 
 STROMA_IDX = _int("STROMA_IDX", 1)
 IMMUNE_IDX = _int("IMMUNE_IDX", 2)
+
+# 환경 변수 추가
+ENABLE_MEDGEMMA = _bool("ENABLE_MEDGEMMA", False)
+NUM_MEDGEMMA_WORKERS = _int("NUM_MEDGEMMA_WORKERS", 1)
