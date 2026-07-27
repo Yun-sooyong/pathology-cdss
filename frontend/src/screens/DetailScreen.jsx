@@ -323,11 +323,6 @@ export default function DetailScreen({
     setShowAddMenu(false);
   }
 
-  function handleComingSoon(featureName) {
-    alert(
-      `${featureName} 기능은 아직 준비 중이에요 (이미지 뷰어 라이브러리 도입 후 구현 예정)`,
-    );
-  }
 
   return (
     <div>
