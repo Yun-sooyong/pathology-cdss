@@ -92,9 +92,13 @@ export default function Sidebar() {
 
       <button
         onClick={toggleTheme}
-        className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+        className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-seg-abstain/40 hover:text-foreground"
       >
-        {isLight ? <Moon size={15} /> : <Sun size={15} />}
+        {isLight ? (
+          <Moon size={15} className="fill-amber-400 text-amber-400" />
+        ) : (
+          <Sun size={15} className="fill-amber-400 text-amber-400" />
+        )}
         {isLight ? "다크 모드" : "라이트 모드"}
       </button>
     </aside>
