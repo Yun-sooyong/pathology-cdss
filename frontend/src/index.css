@@ -50,8 +50,8 @@
   --card-foreground: #f9fafb;
   --popover: #111827;
   --popover-foreground: #f9fafb;
-  --primary: #f1f5f9; /* slate-100, 밝은 중립 — CTA 버튼용 */
-  --primary-foreground: #0f172a; /* 버튼 위 텍스트는 어두운 톤 */
+  --primary: #f1f5f9;
+  --primary-foreground: #0f172a;
   --secondary: #1f2937;
   --secondary-foreground: #f9fafb;
   --muted: #1f2937;
@@ -63,6 +63,27 @@
   --input: #1f2937;
   --ring: #f59e0b;
   --radius: 0.5rem;
+}
+
+.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0f172a;
+  --primary-foreground: #f8fafc;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #e2e8f0;
+  --muted-foreground: #64748b;
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #d97706;
 }
 
 @layer base {

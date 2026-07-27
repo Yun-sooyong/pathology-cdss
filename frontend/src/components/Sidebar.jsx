@@ -1,9 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Microscope,
   TriangleAlert,
   BarChart3,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { MOCK_CASES } from "../mockCases";
 
@@ -24,6 +27,13 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const [isLight, setIsLight] = useState(false);
+
+  function toggleTheme() {
+    const next = !isLight;
+    setIsLight(next);
+    document.documentElement.classList.toggle("light", next);
+  }
 
   return (
     <aside className="flex w-60 shrink-0 flex-col justify-between border-r border-border bg-card/40 p-4">
@@ -36,10 +46,10 @@ export default function Sidebar() {
         <nav className="space-y-1">
           {NAV_ITEMS.map((item) => {
             const isCurrent =
-  item.to &&
-  (item.to === "/"
-    ? location.pathname === "/" && location.search === ""
-    : location.pathname + location.search === item.to);
+              item.to &&
+              (item.to === "/"
+                ? location.pathname === "/" && location.search === ""
+                : location.pathname + location.search === item.to);
             const Icon = item.icon;
 
             if (!item.to) {
@@ -80,6 +90,13 @@ export default function Sidebar() {
         </nav>
       </div>
 
+      <button
+        onClick={toggleTheme}
+        className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+      >
+        {isLight ? <Moon size={15} /> : <Sun size={15} />}
+        {isLight ? "다크 모드" : "라이트 모드"}
+      </button>
     </aside>
   );
 }
