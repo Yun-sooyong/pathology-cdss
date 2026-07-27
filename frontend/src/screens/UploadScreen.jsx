@@ -17,12 +17,7 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function estimateTime(fileCount) {
-  const totalSeconds = fileCount * 34;
-  const min = Math.floor(totalSeconds / 60);
-  const sec = totalSeconds % 60;
-  return min > 0 ? `약 ${min}분 ${sec}초` : `약 ${sec}초`;
-}
+
 
 export default function UploadScreen({
   onAnalyze,
@@ -199,13 +194,9 @@ export default function UploadScreen({
               </SelectContent>
             </Select>
           </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">
-              선택한 이미지 {files.length}개 · 예상 소요 시간
-            </div>
-            <div className="text-base font-bold">
-              {estimateTime(files.length)}
-            </div>
+         <div className="text-right">
+            <div className="text-xs text-muted-foreground">선택한 이미지</div>
+            <div className="text-base font-bold">{files.length}개</div>
           </div>
         </div>
 
