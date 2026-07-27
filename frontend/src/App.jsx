@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
 import TopNav from "./components/TopNav";
-import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import CaseBoardScreen from "./screens/CaseBoardScreen";
 import DashboardScreen from "./screens/DashboardScreen";
@@ -9,14 +9,13 @@ import LoadingScreen from "./screens/LoadingScreen";
 import ErrorScreen from "./screens/ErrorScreen";
 import SummaryScreen from "./screens/SummaryScreen";
 import DetailScreen from "./screens/DetailScreen";
-import { MOCK_CASES } from "./mockCases";
-import { useLocation } from "react-router-dom";
 import AIQualityScreen from "./screens/AIQualityScreen";
 import {
   createBatch,
   uploadToSignedUrl,
   startBatch,
   getJobDetail,
+  getCases,
 } from "./api";
 
 function App() {
@@ -27,33 +26,44 @@ function App() {
   const [completedResults, setCompletedResults] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
+  const [pendingQueue, setPendingQueue] = useState([]);
 
-  const pendingQueue = MOCK_CASES.filter((c) => c.abstain === true).map(
-    (c) => c.id,
-  );
+  // 기권 케이스 목록을 앱 시작 시 한 번 가져와서 "다음 확인 필요 케이스" 이동에 사용
+  useEffect(() => {
+    getCases({ limit: 50 })
+      .then((data) => {
+        const abstainIds = data.results
+          .filter((c) => c.abstain === true)
+          .map((c) => c.job_id);
+        setPendingQueue(abstainIds);
+      })
+      .catch((err) => console.error("기권 케이스 목록 조회 실패:", err));
+  }, []);
 
   function handleNewAnalysis() {
     navigate("/upload");
   }
 
-  // caseId로 실제 데이터를 불러오는 API가 아직 없어서 mock 케이스 목록 기준으로 detail 화면으로 바로 이동.
+  // caseId는 이제 실제 job_id. mock 케이스에서 온 경우엔 mockThumbnail도 같이 전달.
   function handleViewCase(caseId, mockThumbnail) {
     navigate(`/detail/${caseId}`, { state: { mockThumbnail } });
   }
-async function handleComplete(batch) {
-  const jobs = batch?.jobs ?? [];
-  try {
-    const detailedJobs = await Promise.all(
-      jobs.map((j) => getJobDetail(j.job_id))
-    );
-    setCompletedResults(detailedJobs);
-  } catch (err) {
-    console.error("job 상세 조회 실패:", err);
-    setCompletedResults(jobs);
+
+  async function handleComplete(batch) {
+    const jobs = batch?.jobs ?? [];
+    try {
+      const detailedJobs = await Promise.all(
+        jobs.map((j) => getJobDetail(j.job_id))
+      );
+      setCompletedResults(detailedJobs);
+    } catch (err) {
+      console.error("job 상세 조회 실패:", err);
+      setCompletedResults(jobs);
+    }
+    navigate("/summary");
   }
-  navigate("/summary");
-}
- async function handleAnalyze(files, model) {
+
+  async function handleAnalyze(files, model) {
     setIsUploading(true);
     setUploadProgress({});
     try {
@@ -77,15 +87,14 @@ async function handleComplete(batch) {
     }
   }
 
-function handleCancelAll() {
+  function handleCancelAll() {
     navigate("/summary");
   }
-
- 
 
   function handleViewDetail() {
     navigate("/detail");
   }
+
   function handleViewErrors(batch) {
     if (batch) setCompletedResults(batch);
     navigate("/error");
@@ -188,8 +197,25 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
   const { caseId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const realJob = location.state?.job ?? null;
   const mockThumbnail = location.state?.mockThumbnail ?? null;
+  const [realJob, setRealJob] = useState(location.state?.job ?? null);
+
+  useEffect(() => {
+    // Summary에서 이미 job 데이터를 들고 온 경우엔 다시 안 부름
+    if (location.state?.job) {
+      setRealJob(location.state.job);
+      return;
+    }
+    // 대시보드/케이스보드에서 caseId(job_id)만 갖고 들어온 경우 직접 조회
+    if (caseId) {
+      getJobDetail(caseId)
+        .then(setRealJob)
+        .catch((err) => {
+          console.error("job 상세 조회 실패:", err);
+          setRealJob(null);
+        });
+    }
+  }, [caseId, location.state]);
 
   function handleNextPendingCase() {
     const idx = pendingQueue.indexOf(caseId);

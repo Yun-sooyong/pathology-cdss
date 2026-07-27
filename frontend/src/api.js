@@ -98,3 +98,12 @@ export async function getJobDetail(jobId) {
   if (!res.ok) throw new Error(`Job 조회 실패 (상태 코드 ${res.status})`);
   return res.json();
 }
+
+export async function getCases({ limit = 20, offset = 0, status, abstain } = {}) {
+  const p = new URLSearchParams({ limit, offset });
+  if (status) p.set('status', status);
+  if (abstain) p.set('abstain', 'true');
+  const res = await fetch(`${BASE_URL}/api/cases?${p}`);
+  if (!res.ok) throw new Error(`케이스 목록 조회 실패 (${res.status})`);
+  return res.json();
+}
