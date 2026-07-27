@@ -2,7 +2,6 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Microscope,
-  FolderOpen,
   TriangleAlert,
   BarChart3,
   Settings,
@@ -15,7 +14,6 @@ const abstainCount = MOCK_CASES.filter((c) => c.abstain === true).length;
 const NAV_ITEMS = [
   { label: "대시보드", icon: LayoutDashboard, to: "/", active: true },
   { label: "케이스 보드", icon: Microscope, to: "/board" },
-  { label: "케이스 관리", icon: FolderOpen, to: null },
   {
     label: "AI 기권 검증함",
     icon: TriangleAlert,
@@ -23,7 +21,7 @@ const NAV_ITEMS = [
     badge: abstainCount,
     active: true,
   },
-  { label: "AI 품질 통계", icon: BarChart3, to: null },
+  { label: "AI 품질 통계", icon: BarChart3, to: "/quality" },
 ];
 
 export default function Sidebar() {

@@ -89,3 +89,9 @@ export async function getResult(batchId) {
 
   return response.json();
 }
+
+export async function getJobDetail(jobId) {
+  const res = await fetch(`${BASE_URL}/api/jobs/${jobId}`);
+  if (!res.ok) throw new Error(`Job 조회 실패 (상태 코드 ${res.status})`);
+  return res.json();
+}

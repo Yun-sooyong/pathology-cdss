@@ -3,12 +3,6 @@ import TopNav from "./components/TopNav";
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import CaseBoardScreen from "./screens/CaseBoardScreen";
-import {
-  createBatch,
-  uploadToSignedUrl,
-  startBatch,
-  uploadBatchLegacy,
-} from "./api";
 import DashboardScreen from "./screens/DashboardScreen";
 import UploadScreen from "./screens/UploadScreen";
 import LoadingScreen from "./screens/LoadingScreen";
@@ -16,6 +10,15 @@ import ErrorScreen from "./screens/ErrorScreen";
 import SummaryScreen from "./screens/SummaryScreen";
 import DetailScreen from "./screens/DetailScreen";
 import { MOCK_CASES } from "./mockCases";
+import { useLocation } from "react-router-dom";
+import AIQualityScreen from "./screens/AIQualityScreen";
+import {
+  createBatch,
+  uploadToSignedUrl,
+  startBatch,
+  uploadBatchLegacy,
+  getJobDetail,
+} from "./api";
 
 function App() {
   const navigate = useNavigate();
@@ -38,7 +41,19 @@ function App() {
   function handleViewCase(caseId) {
     navigate(`/detail/${caseId}`);
   }
-
+async function handleComplete(batch) {
+  const jobs = batch?.jobs ?? [];
+  try {
+    const detailedJobs = await Promise.all(
+      jobs.map((j) => getJobDetail(j.job_id))
+    );
+    setCompletedResults(detailedJobs);
+  } catch (err) {
+    console.error("job 상세 조회 실패:", err);
+    setCompletedResults(jobs);
+  }
+  navigate("/summary");
+}
   async function handleAnalyze(files, model) {
     setIsUploading(true);
     setUploadProgress({});
@@ -72,19 +87,15 @@ function App() {
     }
   }
 
-  function handleCancelAll() {
+function handleCancelAll() {
     navigate("/summary");
   }
 
-  function handleComplete(batch) {
-    setCompletedResults(batch);
-    navigate("/summary");
-  }
+ 
 
   function handleViewDetail() {
     navigate("/detail");
   }
-
   function handleViewErrors(batch) {
     if (batch) setCompletedResults(batch);
     navigate("/error");
@@ -117,6 +128,7 @@ function App() {
               />
             }
           />
+          <Route path="/quality" element={<AIQualityScreen />} />
           <Route
             path="/upload"
             element={
@@ -185,6 +197,8 @@ function App() {
 function DetailRoute({ pendingQueue, onBackToSummary }) {
   const { caseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const realJob = location.state?.job ?? null;
 
   function handleNextPendingCase() {
     const idx = pendingQueue.indexOf(caseId);
@@ -195,6 +209,7 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
   return (
     <DetailScreen
       caseId={caseId}
+      realJob={realJob}
       pendingQueue={pendingQueue}
       onNextPendingCase={handleNextPendingCase}
       onBackToSummary={onBackToSummary}
