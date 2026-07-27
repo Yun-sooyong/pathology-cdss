@@ -59,3 +59,4 @@ HTTP_PORT = _int("HTTP_PORT", 8000)
 # 0=tumor, 1=stroma, 2=immune, 3=necrosis, 4=other, 255=ignore 
 STROMA_IDX = _int("STROMA_IDX", 1)
 IMMUNE_IDX = _int("IMMUNE_IDX", 2)
+
