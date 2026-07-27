@@ -86,29 +86,33 @@ def test_parse_gcs_uri_rejects_missing_blob_path():
         pass
 
 
-def test_load_mc_stack_downloads_and_parses_npy():
-    arr = np.zeros((2, 3, 3), dtype=np.uint8)
-    buf = io.BytesIO()
-    np.save(buf, arr)
-
-    with patch("worker.download_gcs_blob", return_value=buf.getvalue()) as mock_dl:
-        loaded = worker.load_mc_stack("gs://cdss-bucket/jobs/job-123/mc_stack.npy")
-
-    mock_dl.assert_called_once_with("gs://cdss-bucket/jobs/job-123/mc_stack.npy")
-    assert loaded.shape == (2, 3, 3)
-    assert loaded.dtype == np.uint8
-
-
-def test_load_seg_image_downloads_and_parses_image():
-    img = Image.new("RGB", (4, 4), color=(1, 2, 3))
+def test_load_source_image_returns_rgb_array():
+    img = Image.new("RGB", (4, 6), color=(1, 2, 3))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
 
-    with patch("worker.download_gcs_blob", return_value=buf.getvalue()):
-        loaded = worker.load_seg_image("gs://cdss-bucket/jobs/job-123/seg_image.png")
+    with patch("worker.download_gcs_blob", return_value=buf.getvalue()) as mock_dl:
+        arr = worker.load_source_image("gs://cdss-bucket/jobs/job-123/src.png")
 
-    assert loaded.size == (4, 4)
-    assert loaded.mode == "RGB"
+    mock_dl.assert_called_once_with("gs://cdss-bucket/jobs/job-123/src.png")
+    assert arr.shape == (6, 4, 3), f"(H,W,3) 이어야 함: {arr.shape}"
+    assert arr.dtype == np.uint8
+
+
+def test_render_seg_image_colors_by_majority_class():
+    """다수결 클래스에 해당하는 색이 칠해져야 한다."""
+    immune = np.full((4, 4), 2, dtype=np.uint8)
+    tumor = np.zeros((4, 4), dtype=np.uint8)
+    # 3회 중 2회가 immune -> 전체가 immune 색
+    img = worker.render_seg_image(np.stack([immune, immune, tumor]))
+    assert img.size == (4, 4)
+    assert np.asarray(img)[0, 0].tolist() == list(worker.CLASS_COLORS[2])
+
+
+def test_render_seg_image_marks_ignore_black():
+    masks = np.full((3, 4, 4), 255, dtype=np.uint8)
+    img = worker.render_seg_image(masks)
+    assert np.asarray(img).sum() == 0, "ignore 우세 픽셀은 검게 남아야 함"
 
 
 def test_download_gcs_blob_uses_correct_bucket_and_blob():

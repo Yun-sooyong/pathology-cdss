@@ -11,38 +11,22 @@ MedGemma(medgemma-4b-it)를 호출해 5절 규격의 판독 보고서 JSON을 �
    JSON 파싱 실패 시 재시도/폴백 (발표 16·29번 슬라이드 리스크 대응).
 """
 
+import base64
+import io
 import json
+import os
 import re
 from typing import Optional
 
-MODEL_NAME = "google/medgemma-4b-it"
+# MedGemma는 GPU 서비스(Mosec)의 /medgemma 라우트로 옮겨졌다.
+# 워커는 모델을 들고 있지 않고 HTTP로만 호출한다 → 워커는 CPU 전용.
+MEDGEMMA_URL = os.environ.get(
+    "MEDGEMMA_URL",
+    "https://segmentation-mosec-xxxxxxxxxx-as.a.run.app/medgemma",
+)
+MEDGEMMA_TIMEOUT = int(os.environ.get("MEDGEMMA_TIMEOUT", "300"))
 
 DISCLAIMER = "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다."
-
-
-def load_pipeline(model_name: str = MODEL_NAME):
-    """MedGemma 파이프라인 로드 (Cloud Run Job 시작 시 1회 호출, 빌드타임에 가중치 포함).
-
-    현재는 BF16 그대로 로드. VRAM이 부족한 배포 환경(예: RTX 3070 8GB)에서는
-    아래 bitsandbytes int8 양자화 블록의 주석을 해제하면 바로 적용됨.
-    양자화 적용 후에는 sTIL 할루시네이션 재검증(medgemma_report.py 프롬프트 테스트)을
-    반드시 다시 돌릴 것 — 정밀도가 바뀌면 생성 결과가 미세하게 달라질 수 있음.
-    """
-    from transformers import pipeline
-
-    # ── bitsandbytes int8 양자화 (필요 시 아래 주석 해제) ───────────────────
-    # VRAM 절반(~4GB)으로 줄어듦. requirements.txt에 bitsandbytes 추가 필요.
-    #
-    # from transformers import BitsAndBytesConfig
-    # quant_config = BitsAndBytesConfig(load_in_8bit=True)
-    # return pipeline(
-    #     "image-text-to-text",
-    #     model=model_name,
-    #     model_kwargs={"quantization_config": quant_config},
-    #     device_map="auto",
-    # )
-
-    return pipeline("image-text-to-text", model=model_name, device_map="auto")
 
 SYSTEM_PROMPT = """당신은 유방암 병리를 판독하는 전문의입니다.
 주어진 세그멘테이션 이미지와 수치를 바탕으로 아래 JSON 형식으로만 답하세요.
@@ -92,28 +76,53 @@ def parse_medgemma_json(output: str) -> Optional[dict]:
         return None
 
 
-def generate_report_fields(pipe, image, stil: float, lower: float, upper: float,
+def _encode_image(image) -> str:
+    """PIL.Image -> base64 PNG 문자열 (HTTP 전송용)."""
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def call_medgemma(image, system_prompt: str, user_text: str) -> str:
+    """GPU 서비스의 /medgemma 라우트를 호출해 생성 텍스트를 받는다.
+
+    ⚠️ 요청/응답 규격은 최일운과 확정 필요. 현재 가정:
+        요청  {"system": str, "text": str, "image": base64 PNG, "max_new_tokens": int}
+        응답  {"generated_text": str}
+    프롬프트(SYSTEM_PROMPT)는 워커가 소유한다 — 할루시네이션 제약이 들어있으므로
+    GPU 쪽에서 임의로 대체하면 안 된다.
+    """
+    import requests
+
+    resp = requests.post(
+        MEDGEMMA_URL,
+        json={
+            "system": system_prompt,
+            "text": user_text,
+            "image": _encode_image(image),
+            "max_new_tokens": 500,
+        },
+        timeout=MEDGEMMA_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()["generated_text"]
+
+
+def generate_report_fields(image, stil: float, lower: float, upper: float,
                            abstain: bool, model_used: str, max_retries: int = 2,
                            class_composition=None) -> dict:
     """MedGemma를 호출해 segmentation_summary/findings 두 필드를 얻는다.
     파싱 실패 시 max_retries만큼 재시도, 끝내 실패하면 폴백 텍스트 반환.
 
     Args:
-        pipe: transformers image-text-to-text 파이프라인 (빌드타임 로드된 medgemma-4b-it)
         image: PIL.Image (세그멘테이션 결과 또는 원본 조직 이미지)
+
+    ⚠️ 모델은 GPU 서비스에 있고 워커는 HTTP로만 부른다(A방식). 워커는 CPU 전용.
     """
     user_text = build_user_text(stil, lower, upper, abstain, model_used, class_composition)
-    messages = [
-        {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-        {"role": "user", "content": [
-            {"type": "text", "text": user_text},
-            {"type": "image", "image": image},
-        ]},
-    ]
 
     for attempt in range(max_retries + 1):
-        result = pipe(text=messages, max_new_tokens=500)
-        output = result[0]["generated_text"][-1]["content"]
+        output = call_medgemma(image, SYSTEM_PROMPT, user_text)
         parsed = parse_medgemma_json(output)
         if parsed is not None and "findings" in parsed and "segmentation_summary" in parsed:
             return parsed
