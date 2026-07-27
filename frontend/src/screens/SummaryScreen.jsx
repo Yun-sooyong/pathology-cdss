@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useNavigate } from "react-router-dom";
 
 const MOCK_CASE_LIST = [
   { id: "C-0231", date: "2026-07-21" },
@@ -56,20 +57,18 @@ export default function SummaryScreen({
   onViewDetail,
   onViewErrorReport,
 }) {
-  const hasRealResults =
-    results && results.length > 0 && results.some((r) => r.data);
+  const hasRealResults = results && results.length > 0 && results.some((r) => r.stil_value != null);
   const effectiveFiles = files && files.length > 0 ? files : FALLBACK_FILES;
 
-  const slides = hasRealResults
-    ? results.map((r) => {
-        const report = r.data?.medgemma_report;
-        const rawStil = report?.stil_ratio ?? r.data?.stil_value;
-        const stil = rawStil != null ? Math.round(rawStil * 100) : null;
-        const abstain = report?.uncertainty?.abstain;
-        const status =
-          abstain === true ? "기권" : abstain === false ? "자동" : r.status;
-        return { name: r.name, stil, status, raw: r.data };
-      })
+ const slides = hasRealResults
+  ? results.map((r) => {
+      const report = r.medgemma_report;
+      const rawStil = r.stil_value ?? report?.stil_ratio;
+      const stil = rawStil != null ? Math.round(rawStil) : null;  // 이미 24.31처럼 %값 그대로 옴, *100 불필요
+      const abstain = report?.uncertainty?.abstain;
+      const status = abstain === true ? "기권" : abstain === false ? "자동" : r.status;
+      return { name: r.gcs_image_path?.split("/").pop() ?? r.job_id, stil, status, raw: r };
+    })
     : effectiveFiles.map((f) => {
         const stil = mockStilFor(f.name);
         return { name: f.name, stil, status: statusFor(stil), raw: null };
@@ -82,7 +81,11 @@ export default function SummaryScreen({
   const currentModel = current?.raw?.model_name ?? "unet_v1";
   const currentAnalyzedAt = current?.raw?.updated_at ?? "2026-07-21 09:14";
   const currentCaseId = current?.raw?.id ?? "C-0231";
+const navigate = useNavigate();
 
+function handleGoToDetail() {
+  navigate("/detail", { state: { job: current.raw } });
+}
   return (
     <div>
       <div className="mb-2.5 text-xs text-muted-foreground">
@@ -216,7 +219,7 @@ export default function SummaryScreen({
             </div>
 
             <div className="mt-4 text-right">
-              <Button onClick={onViewDetail}>상세 결과 →</Button>
+              <Button onClick={handleGoToDetail}>상세 결과 →</Button>
             </div>
           </div>
         </div>

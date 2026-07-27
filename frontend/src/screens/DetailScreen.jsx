@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import UncertaintyTerrain from "../components/UncertaintyTerrain";
 import OpenSeadragon from "openseadragon";
 import {
   Download,
@@ -32,32 +33,38 @@ const TAB_DEFS = [
   { id: "seg", label: "세그멘테이션" },
   { id: "uncertainty", label: "불확실성" },
   { id: "compare", label: "이미지 비교" },
-  { id: "3d", label: "3D 뷰" },
 ];
 
 const PLACEHOLDER_DZI =
   "https://openseadragon.github.io/example-images/duomo/duomo.dzi";
 
+function gcsToPublicUrl(gcsPath) {
+  if (!gcsPath || !gcsPath.startsWith("gs://")) return null;
+  const withoutScheme = gcsPath.replace("gs://", "");
+  const [bucket, ...rest] = withoutScheme.split("/");
+  return `https://storage.googleapis.com/${bucket}/${rest.join("/")}`;
+}
 const MOCK_ABSTAINED_ROIS = [
   { id: "roi_01", xPercent: 32, yPercent: 40, reason: "Stroma 경계 흐림" },
   { id: "roi_02", xPercent: 61, yPercent: 58, reason: "염색 아티팩트 의심" },
 ];
 
-function SeadragonViewer({ showRois }) {
+function SeadragonViewer({ showRois, imageUrl }) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
 
   useEffect(() => {
     viewerRef.current = OpenSeadragon({
       element: containerRef.current,
-      tileSources: PLACEHOLDER_DZI,
+      tileSources: imageUrl ? { type: "image", url: imageUrl } : PLACEHOLDER_DZI,
       prefixUrl:
         "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/",
+      drawer: "canvas",
       showNavigationControl: true,
       gestureSettingsMouse: { scrollToZoom: true },
     });
     return () => viewerRef.current?.destroy();
-  }, []);
+  }, [imageUrl]);
   return (
     <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <div ref={containerRef} className="h-full w-full bg-black" />
@@ -80,14 +87,6 @@ function SeadragonViewer({ showRois }) {
   );
 }
 
-// 세그멘테이션 오버레이 팔레트에 맞춰 클래스 색 매핑
-const MOCK_CLASS_RATIOS = [
-  { label: "tumor", value: 28, color: "var(--color-seg-tumor)" },
-  { label: "stroma", value: 33, color: "var(--color-seg-stroma)" },
-  { label: "inflammatory", value: 29, color: "var(--color-seg-tils)" },
-  { label: "necrosis", value: 6, color: "var(--color-muted-foreground)" },
-  { label: "other", value: 4, color: "var(--color-border)" },
-];
 
 const MOCK_STATS = [
   { label: "inflammatory 픽셀", value: "81,204" },
@@ -116,6 +115,7 @@ const imgBoxClass =
 
 export default function DetailScreen({
   caseId,
+  realJob,
   pendingQueue = [],
   onNextPendingCase,
   onBackToSummary,
@@ -123,6 +123,25 @@ export default function DetailScreen({
   const [currentSlide, setCurrentSlide] = useState(MOCK_SLIDES[0]);
   const queueIdx = pendingQueue.indexOf(caseId);
   const hasNext = queueIdx !== -1 && queueIdx < pendingQueue.length - 1;
+
+  // 실제 job 데이터가 있으면 그걸 쓰고, 없으면(대시보드에서 mock 케이스로 들어온 경우) MOCK_RESULT로 대체
+  const report = realJob?.medgemma_report;
+  const result = realJob
+    ? {
+        stil_ratio: (realJob.stil_value ?? report?.stil_ratio ?? 0) / 100,
+        uncertainty: {
+          cp_value: report?.uncertainty?.cp_value ?? realJob.conformal_prediction_value?.cp_value ?? 0,
+          lower: (report?.uncertainty?.lower ?? 0) / 100,
+          upper: (report?.uncertainty?.upper ?? 0) / 100,
+          abstain: report?.uncertainty?.abstain ?? false,
+        },
+        segmentation_summary: report?.segmentation_summary ?? "",
+        findings: report?.findings ?? "",
+        disclaimer: report?.disclaimer ?? MOCK_RESULT.disclaimer,
+      }
+    : MOCK_RESULT;
+
+  const realImageUrl = gcsToPublicUrl(realJob?.gcs_image_path);
   const [openTabs, setOpenTabs] = useState(["original", "seg", "compare"]);
   const [activeTab, setActiveTab] = useState("original");
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -195,7 +214,7 @@ export default function DetailScreen({
           <CardContent className="pt-4 text-center">
             <div className="text-xs text-muted-foreground">STIL</div>
             <div className="font-mono text-4xl font-bold">
-              {Math.round(MOCK_RESULT.stil_ratio * 100)}%
+              {Math.round(result.stil_ratio * 100)}%
             </div>
           </CardContent>
         </Card>
@@ -203,22 +222,22 @@ export default function DetailScreen({
         <Card>
           <CardContent className="pt-4">
             <div className="text-xs text-muted-foreground">
-              예측구간 (CP {MOCK_RESULT.uncertainty.cp_value})
+              예측구간 (CP {result.uncertainty.cp_value})
             </div>
             <div className="relative my-2.5 h-7">
               <div className="absolute inset-x-0 top-3 h-1 rounded-full bg-border" />
               <div
                 className="absolute top-2.5 h-2.5 rounded-full bg-primary"
                 style={{
-                  left: `${MOCK_RESULT.uncertainty.lower * 100}%`,
-                  width: `${(MOCK_RESULT.uncertainty.upper - MOCK_RESULT.uncertainty.lower) * 100}%`,
+                 left: `${result.uncertainty.lower * 100}%`,
+                width: `${(result.uncertainty.upper - result.uncertainty.lower) * 100}%`,
                 }}
               />
               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-seg-abstain" />
             </div>
             <div className="text-xs text-muted-foreground">
-              {Math.round(MOCK_RESULT.uncertainty.lower * 100)}% –{" "}
-              {Math.round(MOCK_RESULT.uncertainty.upper * 100)}%
+              {Math.round(result.uncertainty.lower * 100)}% –{" "}
+              {Math.round(result.uncertainty.upper * 100)}%
             </div>
           </CardContent>
         </Card>
@@ -227,7 +246,7 @@ export default function DetailScreen({
           <CardContent className="pt-4 text-center">
             <div className="text-xs text-muted-foreground">기권여부</div>
             <div className="mt-3.5">
-              {MOCK_RESULT.uncertainty.abstain ? (
+              {result.uncertainty.abstain ? (
                 <Badge className="border border-seg-abstain/40 bg-seg-abstain/10 text-seg-abstain">
                   기권
                 </Badge>
@@ -306,9 +325,9 @@ export default function DetailScreen({
                 </div>
               </div>
 
-              {activeTab === "original" && (
+             {activeTab === "original" && (
                 <div>
-                  <SeadragonViewer showRois={showRois} />
+                  <SeadragonViewer showRois={showRois} imageUrl={realImageUrl} />
                   <div className="mt-2 flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-xs">
                       <input
@@ -319,7 +338,9 @@ export default function DetailScreen({
                       기권 부위(Abstained ROI) 표시
                     </label>
                     <span className="text-[10px] text-muted-foreground">
-                      ※ 데모용 이미지 · 마커 위치는 근사치 (실제 좌표 연동 전)
+                      {realImageUrl
+                        ? "실제 업로드 이미지 · 기권 부위 좌표는 근사치"
+                        : "※ 데모용 이미지 · 마커 위치는 근사치 (실제 좌표 연동 전)"}
                     </span>
                   </div>
                 </div>
@@ -343,14 +364,13 @@ export default function DetailScreen({
               )}
 
               {activeTab === "uncertainty" && (
-                <div className={imgBoxClass}>
-                  [MC-Dropout variance heatmap]
-                  <div className="mt-2.5 text-[11px]">
-                    평균 불확실성(σ): <strong>3.2%p</strong>
+                <div>
+                  <UncertaintyTerrain />
+                  <div className="mt-2.5 text-[11px] text-muted-foreground">
+                    평균 불확실성(σ): <strong className="text-foreground">3.2%p</strong>
                   </div>
                 </div>
               )}
-
               {activeTab === "compare" && (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
@@ -401,60 +421,6 @@ export default function DetailScreen({
                 </div>
               )}
 
-              {activeTab === "3d" && (
-                <div className={cn(imgBoxClass, "min-h-[420px]")}>
-                  <div className="flex items-end gap-7 px-5 pb-5 pt-12">
-                    {MOCK_CLASS_RATIOS.map((c) => {
-                      const h = c.value * 5;
-                      return (
-                        <div
-                          key={c.label}
-                          className="relative w-9"
-                          style={{ height: h + 16 }}
-                        >
-                          <div
-                            className="absolute bottom-0 left-9 w-3 origin-top-left"
-                            style={{
-                              height: h,
-                              background: c.color,
-                              filter: "brightness(0.6)",
-                              transform: "skewY(40deg)",
-                            }}
-                          />
-                          <div
-                            className="absolute bottom-0 left-0 w-9"
-                            style={{ height: h, background: c.color }}
-                          />
-                          <div
-                            className="absolute left-0 top-4 w-9 origin-bottom-left"
-                            style={{
-                              height: 16,
-                              background: c.color,
-                              filter: "brightness(1.35)",
-                              transform: "skewX(-40deg) scaleY(0.6)",
-                            }}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap justify-center gap-3.5 text-[11px]">
-                    {MOCK_CLASS_RATIOS.map((c) => (
-                      <span key={c.label} className="flex items-center gap-1">
-                        <span
-                          className="inline-block h-2.5 w-2.5 rounded-sm"
-                          style={{ background: c.color }}
-                        />
-                        {c.label} {c.value}%
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2.5 text-center text-[10px] text-muted-foreground">
-                    ※ 실제 3D 조직 재구성이 아니라, 클래스별 픽셀 비율을 입체
-                    막대로 표현한 시각화입니다.
-                  </div>
-                </div>
-              )}
 
               <div className="mt-2.5 text-[11px] text-muted-foreground">
                 해상도 2048×2048px
@@ -492,15 +458,15 @@ export default function DetailScreen({
               <div className="mb-2 text-[11px] text-muted-foreground">
                 요약 (segmentation_summary)
               </div>
-              <div className="mb-3 text-sm">
-                {MOCK_RESULT.segmentation_summary}
+             <div className="mb-3 text-sm">
+                {result.segmentation_summary || MOCK_RESULT.segmentation_summary}
               </div>
               <div className="mb-2 text-[11px] text-muted-foreground">
                 판독 소견 (findings)
               </div>
-              <div className="text-sm">{MOCK_RESULT.findings}</div>
+              <div className="text-sm">{result.findings || MOCK_RESULT.findings}</div>
               <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
-                {MOCK_RESULT.disclaimer}
+                {result.disclaimer}
               </div>
             </CardContent>
           </Card>
