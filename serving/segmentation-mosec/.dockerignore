@@ -3,6 +3,5 @@ __pycache__/
 .pytest_cache/
 tests/
 scripts/
-weights/*.onnx
 .git/
 *.md
