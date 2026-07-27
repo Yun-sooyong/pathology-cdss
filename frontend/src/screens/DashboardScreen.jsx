@@ -254,7 +254,7 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
                         sTIL {c.stil}% · {c.abstainReason ?? "사유 미기재"}
                       </div>
                     </div>
-                    <Button variant="secondary" size="sm" onClick={() => onViewCase(c.id)}>
+                    <Button variant="secondary" size="sm" onClick={() => onViewCase(c.id, c.thumbnail)}>
                       검증 →
                     </Button>
                   </div>
@@ -367,7 +367,7 @@ export default function DashboardScreen({ onNewAnalysis, onViewCase }) {
                         ? "cursor-pointer hover:bg-accent/40"
                         : ""
                     }`}
-                    onClick={() => c.status === "완료" && onViewCase(c.id)}
+                  onClick={() => c.status === "완료" && onViewCase(c.id, c.thumbnail)}
                   >
                     <TableCell className="py-4">{c.id}</TableCell>
                     <TableCell className="py-4">{c.uploadedAt}</TableCell>

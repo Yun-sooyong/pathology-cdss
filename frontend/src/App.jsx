@@ -38,8 +38,8 @@ function App() {
   }
 
   // caseId로 실제 데이터를 불러오는 API가 아직 없어서 mock 케이스 목록 기준으로 detail 화면으로 바로 이동.
-  function handleViewCase(caseId) {
-    navigate(`/detail/${caseId}`);
+  function handleViewCase(caseId, mockThumbnail) {
+    navigate(`/detail/${caseId}`, { state: { mockThumbnail } });
   }
 async function handleComplete(batch) {
   const jobs = batch?.jobs ?? [];
@@ -199,6 +199,7 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
   const navigate = useNavigate();
   const location = useLocation();
   const realJob = location.state?.job ?? null;
+  const mockThumbnail = location.state?.mockThumbnail ?? null;
 
   function handleNextPendingCase() {
     const idx = pendingQueue.indexOf(caseId);
@@ -210,6 +211,7 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
     <DetailScreen
       caseId={caseId}
       realJob={realJob}
+      mockThumbnail={mockThumbnail}
       pendingQueue={pendingQueue}
       onNextPendingCase={handleNextPendingCase}
       onBackToSummary={onBackToSummary}

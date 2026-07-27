@@ -96,7 +96,7 @@ export default function CaseBoardScreen({ onViewCase }) {
                   key={c.id}
                   draggable
                   onDragStart={() => setDraggingId(c.id)}
-                  onClick={() => c.status === "완료" && onViewCase?.(c.id)}
+                 onClick={() => c.status === "완료" && onViewCase?.(c.id, c.thumbnail)}
                   className={`cursor-grab border-t-2 ${col.accent} transition-shadow active:cursor-grabbing ${
                     c.status === "완료" ? "hover:border-seg-abstain/40" : ""
                   }`}
