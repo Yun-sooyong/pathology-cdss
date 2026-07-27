@@ -16,7 +16,6 @@ import {
   createBatch,
   uploadToSignedUrl,
   startBatch,
-  uploadBatchLegacy,
   getJobDetail,
 } from "./api";
 
@@ -54,18 +53,10 @@ async function handleComplete(batch) {
   }
   navigate("/summary");
 }
-  async function handleAnalyze(files, model) {
+ async function handleAnalyze(files, model) {
     setIsUploading(true);
     setUploadProgress({});
     try {
-      // ↓↓↓ 임시: /api/batches(signed URL 방식)가 아직 배포 전이라 legacy 방식으로 테스트 ↓↓↓
-      const result = await uploadBatchLegacy(files, model);
-      console.log("업로드 완료(legacy), batch_id:", result.batch_id);
-      setBatchFiles(files);
-      setBatchId(result.batch_id);
-      navigate("/loading");
-
-      /* signed URL 방식 준비되면 위 3줄 지우고 아래 주석 풀기:
       const { batch_id, uploads } = await createBatch(files, model);
       await Promise.all(
         uploads.map((u, i) =>
@@ -77,8 +68,7 @@ async function handleComplete(batch) {
       await startBatch(batch_id);
       setBatchFiles(files);
       setBatchId(batch_id);
-      navigate('/loading');
-      */
+      navigate("/loading");
     } catch (err) {
       console.error(err);
       alert(`업로드 중 오류가 발생했어요: ${err.message}`);

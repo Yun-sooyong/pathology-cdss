@@ -26,9 +26,12 @@ export async function createBatch(files, model) {
   const response = await fetch(`${BASE_URL}/api/batches`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+   body: JSON.stringify({
       model_name: model,
-      files: files.map((f) => ({ filename: f.name, size: f.file.size })),
+      files: files.map((f) => ({
+        filename: f.name,
+        content_type: f.file.type || "application/octet-stream",
+      })),
     }),
   });
 
