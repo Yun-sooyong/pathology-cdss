@@ -1,57 +1,28 @@
-# === Python (backend/, model-training/, worker/, serving/) ===
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-.venv/
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
+# Preprocessed data (generated)
+preprocessed_data/
+preprocessed_triplet/
 
-# === Node / React (frontend/) ===
-node_modules/
-dist/
-build/
-.vite/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Pathomics project: raw/processed image data (large, not for git)
+pathomics_project/data_raw/
+pathomics_project/preprocessed/
 
-# === 환경변수 / 비밀정보 (전체 공통) ===
-.env
-.env.*
-!.env.example
+# Model platform mirror: trained weights (large, not for git)
+model_platform/weights/*.keras
+model_platform/weights/*.h5
+model_platform/weights/saved_model_dir/
+model_platform/weights/*.pt
+model_platform/weights/*.pth
 
-# === 모델 가중치 (GCS에만 저장, Git 커밋 금지) ===
-*.onnx
-*.pt
-*.pth
-*.h5
-*.ckpt
-*.safetensors
+# Model platform mirror: local-only symlink (real model-platform repo has a real 전처리/ folder here)
+model_platform/전처리
 
-# === IDE ===
-.vscode/
-.idea/
-*.swp
-
-# === OS ===
-.DS_Store
-Thumbs.db
-
-# === 로컬 도구 바이너리 ===
-cloud-sql-proxy.exe
-
-# === 테스트 / 커버리지 ===
-.coverage
-htmlcov/
+# pytest cache
 .pytest_cache/
+
+# Cache and temp
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.DS_Store
