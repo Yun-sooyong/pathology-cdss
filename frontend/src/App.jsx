@@ -1,30 +1,42 @@
-import { useState } from 'react';
-import { createBatch, uploadToSignedUrl, startBatch, uploadBatchLegacy } from './api';
-import DashboardScreen from './screens/DashboardScreen';
-import UploadScreen from './screens/UploadScreen';
-import LoadingScreen from './screens/LoadingScreen';
-import ErrorScreen from './screens/ErrorScreen';
-import SummaryScreen from './screens/SummaryScreen';
-import DetailScreen from './screens/DetailScreen';
+import { useState } from "react";
+import TopNav from "./components/TopNav";
+import { Routes, Route, useNavigate, useParams } from "react-router-dom";
+import Sidebar from "./components/Sidebar";
+import CaseBoardScreen from "./screens/CaseBoardScreen";
+import {
+  createBatch,
+  uploadToSignedUrl,
+  startBatch,
+  uploadBatchLegacy,
+} from "./api";
+import DashboardScreen from "./screens/DashboardScreen";
+import UploadScreen from "./screens/UploadScreen";
+import LoadingScreen from "./screens/LoadingScreen";
+import ErrorScreen from "./screens/ErrorScreen";
+import SummaryScreen from "./screens/SummaryScreen";
+import DetailScreen from "./screens/DetailScreen";
+import { MOCK_CASES } from "./mockCases";
 
 function App() {
-  const [screen, setScreen] = useState('dashboard');
+  const navigate = useNavigate();
+
   const [batchFiles, setBatchFiles] = useState([]);
   const [batchId, setBatchId] = useState(null);
   const [completedResults, setCompletedResults] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
 
+  const pendingQueue = MOCK_CASES.filter((c) => c.abstain === true).map(
+    (c) => c.id,
+  );
+
   function handleNewAnalysis() {
-    setScreen('upload');
+    navigate("/upload");
   }
 
-  // 지금은 케이스별로 실제 데이터를 따로 불러오는 기능이 없어서,
-  // 어떤 케이스를 눌러도 일단 요약 화면(mock)으로 이동만 함.
-  // 나중에 API 연동되면 caseId로 실제 데이터를 불러오도록 바꿔야 함.
+  // caseId로 실제 데이터를 불러오는 API가 아직 없어서 mock 케이스 목록 기준으로 detail 화면으로 바로 이동.
   function handleViewCase(caseId) {
-    console.log('케이스 상세 이동:', caseId);
-    setScreen('summary');
+    navigate(`/detail/${caseId}`);
   }
 
   async function handleAnalyze(files, model) {
@@ -33,18 +45,13 @@ function App() {
     try {
       // ↓↓↓ 임시: /api/batches(signed URL 방식)가 아직 배포 전이라 legacy 방식으로 테스트 ↓↓↓
       const result = await uploadBatchLegacy(files, model);
-      console.log('업로드 완료(legacy), batch_id:', result.batch_id);
+      console.log("업로드 완료(legacy), batch_id:", result.batch_id);
       setBatchFiles(files);
       setBatchId(result.batch_id);
-      setScreen('loading');
+      navigate("/loading");
 
       /* signed URL 방식 준비되면 위 3줄 지우고 아래 주석 풀기:
-      // 1단계: 배치 생성 — 파일명/크기만 먼저 보내고 서명된 업로드 URL을 받는다
       const { batch_id, uploads } = await createBatch(files, model);
-      console.log('배치 생성 완료:', batch_id, uploads);
-
-      // 2단계: 각 파일을 GCS에 직접 업로드 (Cloud Run을 거치지 않음, 병렬로 진행)
-      // 주의: uploads 배열 순서가 files 배열 순서와 같다고 가정함 (서버에 순서 보장 확인 필요)
       await Promise.all(
         uploads.map((u, i) =>
           uploadToSignedUrl(u.upload_url, files[i].file, (percent) => {
@@ -52,13 +59,10 @@ function App() {
           })
         )
       );
-
-      // 3단계: 업로드 다 됐다는 신호 → 서버가 실제 분석을 큐에 등록
       await startBatch(batch_id);
-
       setBatchFiles(files);
       setBatchId(batch_id);
-      setScreen('loading');
+      navigate('/loading');
       */
     } catch (err) {
       console.error(err);
@@ -69,71 +73,132 @@ function App() {
   }
 
   function handleCancelAll() {
-    setScreen('summary');
+    navigate("/summary");
   }
 
   function handleComplete(batch) {
     setCompletedResults(batch);
-    setScreen('summary');
+    navigate("/summary");
   }
 
   function handleViewDetail() {
-    setScreen('detail');
+    navigate("/detail");
   }
 
   function handleViewErrors(batch) {
     if (batch) setCompletedResults(batch);
-    setScreen('error');
+    navigate("/error");
   }
 
   function handleGenerateReport() {
-    alert('오류리포트 생성 (실제 PDF/문서 생성은 백엔드 연동 후 구현 예정)');
+    alert("오류리포트 생성 (실제 PDF/문서 생성은 백엔드 연동 후 구현 예정)");
   }
 
   function handleBackToUpload() {
-    setScreen('upload');
+    navigate("/upload");
   }
 
   function handleBackToSummary() {
-    setScreen('summary');
+    navigate("/summary");
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '32px auto', padding: '0 24px' }}>
-      {screen === 'dashboard' && (
-        <DashboardScreen onNewAnalysis={handleNewAnalysis} onViewCase={handleViewCase} />
-      )}
-
-      {screen === 'upload' && (
-        <UploadScreen onAnalyze={handleAnalyze} isUploading={isUploading} uploadProgress={uploadProgress} />
-      )}
-
-      {screen === 'loading' && (
-        <LoadingScreen
-          batchId={batchId}
-          files={batchFiles}
-          onCancelAll={handleCancelAll}
-          onComplete={handleComplete}
-          onViewErrors={handleViewErrors}
-        />
-      )}
-
-      {screen === 'error' && (
-        <ErrorScreen batch={completedResults} files={batchFiles} onGenerateReport={handleGenerateReport} onBackToUpload={handleBackToUpload} />
-      )}
-
-      {screen === 'summary' && (
-        <SummaryScreen
-          results={completedResults}
-          files={batchFiles}
-          onNewAnalysis={handleNewAnalysis}
-          onViewDetail={handleViewDetail}
-          onViewErrorReport={handleViewErrors}
-        />
-      )}
-
-      {screen === 'detail' && <DetailScreen onBackToSummary={handleBackToSummary} />}
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto px-6 py-8">
+        <TopNav />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <DashboardScreen
+                onNewAnalysis={handleNewAnalysis}
+                onViewCase={handleViewCase}
+              />
+            }
+          />
+          <Route
+            path="/upload"
+            element={
+              <UploadScreen
+                onAnalyze={handleAnalyze}
+                isUploading={isUploading}
+                uploadProgress={uploadProgress}
+              />
+            }
+          />
+          <Route
+            path="/loading"
+            element={
+              <LoadingScreen
+                batchId={batchId}
+                files={batchFiles}
+                onCancelAll={handleCancelAll}
+                onComplete={handleComplete}
+                onViewErrors={handleViewErrors}
+              />
+            }
+          />
+          <Route
+            path="/board"
+            element={<CaseBoardScreen onViewCase={handleViewCase} />}
+          />
+          <Route
+            path="/error"
+            element={
+              <ErrorScreen
+                batch={completedResults}
+                files={batchFiles}
+                onGenerateReport={handleGenerateReport}
+                onBackToUpload={handleBackToUpload}
+              />
+            }
+          />
+          <Route
+            path="/summary"
+            element={
+              <SummaryScreen
+                results={completedResults}
+                files={batchFiles}
+                onNewAnalysis={handleNewAnalysis}
+                onViewDetail={handleViewDetail}
+                onViewErrorReport={handleViewErrors}
+              />
+            }
+          />
+          <Route
+            path="/detail/:caseId?"
+            element={
+              <DetailRoute
+                pendingQueue={pendingQueue}
+                onBackToSummary={handleBackToSummary}
+              />
+            }
+          />
+        </Routes>
+      </main>
     </div>
+  );
+}
+
+// URL 파라미터(caseId)를 DetailScreen에 연결하고, "다음 케이스" 이동도 URL 변경으로 처리
+function DetailRoute({ pendingQueue, onBackToSummary }) {
+  const { caseId } = useParams();
+  const navigate = useNavigate();
+
+  function handleNextPendingCase() {
+    const idx = pendingQueue.indexOf(caseId);
+    const next = pendingQueue[idx + 1];
+    if (next) navigate(`/detail/${next}`);
+  }
+
+  return (
+    <DetailScreen
+      caseId={caseId}
+      pendingQueue={pendingQueue}
+      onNextPendingCase={handleNextPendingCase}
+      onBackToSummary={onBackToSummary}
+    />
   );
 }
 

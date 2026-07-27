@@ -1,4 +1,17 @@
-import { useState } from 'react';
+import { useState } from "react";
+import { UploadCloud, X, AlertTriangle, Ban } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -11,17 +24,21 @@ function estimateTime(fileCount) {
   return min > 0 ? `약 ${min}분 ${sec}초` : `약 ${sec}초`;
 }
 
-export default function UploadScreen({ onAnalyze, isUploading, uploadProgress }) {
-  const [files, setFiles] = useState([]); // 실제 업로드 연동부터는 빈 상태로 시작 (mock 예시엔 진짜 File 객체가 없음)
-  const [model, setModel] = useState('unet_v1');
+export default function UploadScreen({
+  onAnalyze,
+  isUploading,
+  uploadProgress,
+}) {
+  const [files, setFiles] = useState([]);
+  const [model, setModel] = useState("attention_unet_v1");
   const [isDragOver, setIsDragOver] = useState(false);
 
   function addFiles(fileList) {
     const newFiles = Array.from(fileList).map((file) => ({
-      file, // 실제 업로드용 File 객체 — FormData에 넣으려면 이게 필요함
+      file,
       name: file.name,
       size: formatSize(file.size),
-      status: 'ok', // 실제 검증 로직은 나중에(파일 형식/해상도 체크 등) 추가 예정
+      status: "ok",
       message: null,
     }));
     setFiles((prev) => [...prev, ...newFiles]);
@@ -31,7 +48,7 @@ export default function UploadScreen({ onAnalyze, isUploading, uploadProgress })
     if (e.target.files && e.target.files.length > 0) {
       addFiles(e.target.files);
     }
-    e.target.value = ''; // 같은 파일을 다시 선택해도 onChange가 또 실행되도록 초기화
+    e.target.value = "";
   }
 
   function handleDrop(e) {
@@ -46,154 +63,158 @@ export default function UploadScreen({ onAnalyze, isUploading, uploadProgress })
     setFiles(files.filter((f) => f.name !== name));
   }
 
-  const hasBlockingError = files.some((f) => f.status === 'error');
-  const warningsAndErrors = files.filter((f) => f.status !== 'ok');
+  const hasBlockingError = files.some((f) => f.status === "error");
+  const warningsAndErrors = files.filter((f) => f.status !== "ok");
 
   return (
-    <div className="card">
-      <div className="card-title">이미지 업로드</div>
+    <Card>
+      <CardHeader>
+        <CardTitle>이미지 업로드</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <label
+          className={cn(
+            "flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground cursor-pointer transition-colors",
+            isDragOver && "border-primary bg-primary/10",
+          )}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+        >
+          <UploadCloud size={30} className="text-primary" />
+          <span>이미지를 드래그하거나 클릭하여 업로드 (여러 장 선택 가능)</span>
+          <span className="text-xs text-muted-foreground">
+            지원 형식: PNG · JPG · TIFF
+          </span>
+          <input
+            type="file"
+            multiple
+            accept=".png,.jpg,.jpeg,.tiff,.tif"
+            onChange={handleFileInputChange}
+            className="hidden"
+          />
+        </label>
 
-      <label
-        className="dropzone"
-        style={{
-          display: 'block',
-          cursor: 'pointer',
-          background: isDragOver ? 'var(--hema-soft)' : undefined,
-          borderColor: isDragOver ? 'var(--hema)' : undefined,
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={handleDrop}
-      >
-        <div className="icon">⬆</div>
-        이미지를 드래그하거나 클릭하여 업로드 (여러 장 선택 가능)
-        <div className="filetypes">지원 형식: PNG · JPG · TIFF</div>
-        <input
-          type="file"
-          multiple
-          accept=".png,.jpg,.jpeg,.tiff,.tif"
-          onChange={handleFileInputChange}
-          style={{ display: 'none' }}
-        />
-      </label>
-
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginTop: 16,
-          maxHeight: 260,
-          overflowY: 'auto',
-          padding: 4,
-        }}
-      >
-        {files.map((file) => (
-          <div key={file.name} style={{ position: 'relative', width: 100, textAlign: 'center' }}>
-            <button
-              onClick={() => removeFile(file.name)}
-              aria-label={`${file.name} 제거`}
-              style={{
-                position: 'absolute',
-                top: -8,
-                right: -8,
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                border: '1px solid var(--eosin)',
-                background: 'var(--surface)',
-                color: 'var(--eosin)',
-                fontSize: 12,
-                lineHeight: '20px',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              ✕
-            </button>
-            <div
-              className="file-thumb"
-              style={{
-                width: 96,
-                height: 96,
-                margin: '0 auto',
-                border: file.status === 'error' ? '2px solid var(--eosin)' : '1px solid var(--border)',
-              }}
-            />
-            <div style={{ fontSize: 12, marginTop: 6, wordBreak: 'break-all' }}>{file.name}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{file.size}</div>
-          </div>
-        ))}
-      </div>
-
-      {isUploading && (
-        <div className="card" style={{ marginTop: 16, background: 'var(--bg)' }}>
-          <div className="card-title" style={{ marginBottom: 8 }}>업로드 중...</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {files.map((f) => {
-              const percent = uploadProgress?.[f.name] ?? 0;
-              return (
-                <div key={f.name}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                    <span>{f.name}</span>
-                    <span style={{ color: 'var(--ink-soft)' }}>{percent}%</span>
-                  </div>
-                  <div style={{ background: 'var(--border)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                    <div style={{ background: 'var(--hema)', height: '100%', width: `${percent}%`, transition: 'width 0.2s ease' }} />
-                  </div>
+        {files.length > 0 && (
+          <div className="mt-4 flex max-h-64 flex-wrap gap-4 overflow-y-auto p-1">
+            {files.map((file) => (
+              <div key={file.name} className="relative w-24 text-center">
+                <button
+                  onClick={() => removeFile(file.name)}
+                  aria-label={`${file.name} 제거`}
+                  className="absolute -right-2 -top-2 flex h-5.5 w-5.5 items-center justify-center rounded-full border border-destructive bg-card text-destructive"
+                >
+                  <X size={12} />
+                </button>
+                <div
+                  className={cn(
+                    "mx-auto h-24 w-24 rounded-md border",
+                    file.status === "error"
+                      ? "border-2 border-destructive"
+                      : "border-border",
+                  )}
+                />
+                <div className="mt-1.5 break-all text-xs">{file.name}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {file.size}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {warningsAndErrors.length > 0 && (
-        <div className="card" style={{ marginTop: 16, background: 'var(--bg)' }}>
-          <div className="card-title" style={{ marginBottom: 8 }}>
-            분석 시작 전 사전 확인
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-            {warningsAndErrors.map((f) => (
-              <div key={f.name} style={{ color: f.status === 'error' ? 'var(--eosin-dark)' : 'var(--ink-soft)' }}>
-                {f.status === 'error' ? '⛔' : '⚠'} {f.name} — {f.message}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="grid" style={{ marginTop: 24 }}>
-        <div className="col-6">
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 6 }}>분석 모델 선택</div>
-          <select
-            className="select"
-            style={{ width: '100%' }}
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
+        {isUploading && (
+          <Card className="mt-4 bg-background">
+            <CardContent className="pt-4">
+              <div className="mb-2 text-sm font-medium">업로드 중...</div>
+              <div className="flex flex-col gap-3">
+                {files.map((f) => {
+                  const percent = uploadProgress?.[f.name] ?? 0;
+                  return (
+                    <div key={f.name}>
+                      <div className="mb-1 flex justify-between text-[11px]">
+                        <span>{f.name}</span>
+                        <span className="text-muted-foreground">
+                          {percent}%
+                        </span>
+                      </div>
+                      <Progress value={percent} className="h-1.5" />
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {warningsAndErrors.length > 0 && (
+          <Alert
+            variant={hasBlockingError ? "destructive" : "default"}
+            className="mt-4"
           >
-            <option value="unet_v1">unet_v1</option>
-            <option value="attention_unet_v1">attention_unet_v1</option>
-          </select>
-        </div>
-        <div className="col-6" style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>선택한 이미지 {files.length}개 · 예상 소요 시간</div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{estimateTime(files.length)}</div>
-        </div>
-      </div>
+            <AlertTitle>분석 시작 전 사전 확인</AlertTitle>
+            <AlertDescription>
+              <div className="flex flex-col gap-1.5 text-xs">
+                {warningsAndErrors.map((f) => (
+                  <div key={f.name} className="flex items-center gap-1.5">
+                    {f.status === "error" ? (
+                      <Ban size={13} />
+                    ) : (
+                      <AlertTriangle size={13} />
+                    )}
+                    {f.name} — {f.message}
+                  </div>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
-      <div style={{ textAlign: 'right', marginTop: 24 }}>
-        <button
-          className="btn btn-primary"
-          onClick={() => onAnalyze(files, model)}
-          disabled={files.length === 0 || hasBlockingError || isUploading}
-        >
-          {isUploading ? '업로드 중...' : hasBlockingError ? '분석 시작 (오류 파일 제거 필요)' : '분석 시작'}
-        </button>
-      </div>
-    </div>
+        <div className="mt-6 flex items-end justify-between gap-4">
+          <div className="flex-1">
+            <div className="mb-1.5 text-xs text-muted-foreground">
+              분석 모델 선택
+            </div>
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="attention_unet_v1">
+                  attention_unet_v1
+                </SelectItem>
+                <SelectItem value="unet_v1">
+                  unet_v1 (보정 전 — 실패 가능)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">
+              선택한 이미지 {files.length}개 · 예상 소요 시간
+            </div>
+            <div className="text-base font-bold">
+              {estimateTime(files.length)}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 text-right">
+          <Button
+            onClick={() => onAnalyze(files, model)}
+            disabled={files.length === 0 || hasBlockingError || isUploading}
+          >
+            {isUploading
+              ? "업로드 중..."
+              : hasBlockingError
+                ? "분석 시작 (오류 파일 제거 필요)"
+                : "분석 시작"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,60 +1,142 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from "react";
+import OpenSeadragon from "openseadragon";
+import {
+  Download,
+  ArrowLeftCircle,
+  X,
+  Plus,
+  ZoomIn,
+  MapPin,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
-// 열 수 있는 탭 종류 전체 목록
 const TAB_DEFS = [
-  { id: 'original', label: '원본' },
-  { id: 'seg', label: '세그멘테이션' },
-  { id: 'uncertainty', label: '불확실성' },
-  { id: 'compare', label: '이미지 비교' },
+  { id: "original", label: "원본" },
+  { id: "seg", label: "세그멘테이션" },
+  { id: "uncertainty", label: "불확실성" },
+  { id: "compare", label: "이미지 비교" },
+  { id: "3d", label: "3D 뷰" },
+];
+
+const PLACEHOLDER_DZI =
+  "https://openseadragon.github.io/example-images/duomo/duomo.dzi";
+
+const MOCK_ABSTAINED_ROIS = [
+  { id: "roi_01", xPercent: 32, yPercent: 40, reason: "Stroma 경계 흐림" },
+  { id: "roi_02", xPercent: 61, yPercent: 58, reason: "염색 아티팩트 의심" },
+];
+
+function SeadragonViewer({ showRois }) {
+  const containerRef = useRef(null);
+  const viewerRef = useRef(null);
+
+  useEffect(() => {
+    viewerRef.current = OpenSeadragon({
+      element: containerRef.current,
+      tileSources: PLACEHOLDER_DZI,
+      prefixUrl:
+        "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/",
+      showNavigationControl: true,
+      gestureSettingsMouse: { scrollToZoom: true },
+    });
+    return () => viewerRef.current?.destroy();
+  }, []);
+  return (
+    <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-border">
+      <div ref={containerRef} className="h-full w-full bg-black" />
+      {showRois &&
+        MOCK_ABSTAINED_ROIS.map((roi) => (
+          <div
+            key={roi.id}
+            title={roi.reason}
+            className="absolute cursor-pointer text-seg-abstain drop-shadow-md"
+            style={{
+              left: `${roi.xPercent}%`,
+              top: `${roi.yPercent}%`,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <MapPin size={22} fill="oklch(from currentColor l c h / 0.3)" />
+          </div>
+        ))}
+    </div>
+  );
+}
+
+// 세그멘테이션 오버레이 팔레트에 맞춰 클래스 색 매핑
+const MOCK_CLASS_RATIOS = [
+  { label: "tumor", value: 28, color: "var(--color-seg-tumor)" },
+  { label: "stroma", value: 33, color: "var(--color-seg-stroma)" },
+  { label: "inflammatory", value: 29, color: "var(--color-seg-tils)" },
+  { label: "necrosis", value: 6, color: "var(--color-muted-foreground)" },
+  { label: "other", value: 4, color: "var(--color-border)" },
 ];
 
 const MOCK_STATS = [
-  { label: 'inflammatory 픽셀', value: '81,204' },
-  { label: 'stroma 픽셀', value: '91,830' },
-  { label: 'sTIL = infl/(infl+stroma)', value: '47.0%' },
+  { label: "inflammatory 픽셀", value: "81,204" },
+  { label: "stroma 픽셀", value: "91,830" },
+  { label: "sTIL = infl/(infl+stroma)", value: "47.0%" },
 ];
 
-// 검모님(E)이 준 실제 API 필드명 그대로 맞춰둔 mock 데이터.
-// 나중에 진짜 응답으로 바꿀 때 이 구조 그대로 받으면 됨.
 const MOCK_RESULT = {
   stil_ratio: 0.47,
-  uncertainty: {
-    cp_value: 0.86,
-    lower: 0.38,
-    upper: 0.56,
-    abstain: true,
-  },
-  segmentation_summary: '[segmentation_summary 필드 — 조직 유형별 비율 요약 1~2문장]',
-  findings: '[findings 필드 — MedGemma가 종합 판단해 생성하는 판독 소견 전문]',
-  disclaimer: '본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다.',
+  uncertainty: { cp_value: 0.86, lower: 0.38, upper: 0.56, abstain: true },
+  segmentation_summary:
+    "[segmentation_summary 필드 — 조직 유형별 비율 요약 1~2문장]",
+  findings: "[findings 필드 — MedGemma가 종합 판단해 생성하는 판독 소견 전문]",
+  disclaimer:
+    "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다.",
 };
 
-// 이 배치 안의 슬라이드 목록 (전환기용). 실제로는 Summary에서 넘어온 배치 정보를 써야 함.
-const MOCK_SLIDES = ['slide_0231.tiff', 'slide_0232.tiff', 'slide_0233.tiff'];
+const MOCK_SLIDES = ["slide_0231.tiff", "slide_0232.tiff", "slide_0233.tiff"];
 
 function findTabDef(id) {
   return TAB_DEFS.find((t) => t.id === id);
 }
 
-export default function DetailScreen({ onBackToSummary }) {
+const imgBoxClass =
+  "flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-border bg-background p-4 text-center text-sm text-muted-foreground";
+
+export default function DetailScreen({
+  caseId,
+  pendingQueue = [],
+  onNextPendingCase,
+  onBackToSummary,
+}) {
   const [currentSlide, setCurrentSlide] = useState(MOCK_SLIDES[0]);
-  // 지금 열려있는 탭들의 id 배열. 손그림처럼 처음엔 원본/세그멘테이션/이미지비교만 열어두고,
-  // 불확실성은 +로 나중에 추가하게 남겨둠.
-  const [openTabs, setOpenTabs] = useState(['original', 'seg', 'compare']);
-  const [activeTab, setActiveTab] = useState('original');
+  const queueIdx = pendingQueue.indexOf(caseId);
+  const hasNext = queueIdx !== -1 && queueIdx < pendingQueue.length - 1;
+  const [openTabs, setOpenTabs] = useState(["original", "seg", "compare"]);
+  const [activeTab, setActiveTab] = useState("original");
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showRois, setShowRois] = useState(true);
 
   const availableToAdd = TAB_DEFS.filter((t) => !openTabs.includes(t.id));
 
   function closeTab(id, e) {
-    e.stopPropagation(); // x를 눌렀을 때 탭 자체가 선택되는 걸 막음
-    if (openTabs.length === 1) return; // 탭이 하나 남았을 땐 닫지 못하게
+    e.stopPropagation();
+    if (openTabs.length === 1) return;
     const remaining = openTabs.filter((t) => t !== id);
     setOpenTabs(remaining);
-    if (activeTab === id) {
-      setActiveTab(remaining[0]);
-    }
+    if (activeTab === id) setActiveTab(remaining[0]);
   }
 
   function addTab(id) {
@@ -64,267 +146,390 @@ export default function DetailScreen({ onBackToSummary }) {
   }
 
   function handleComingSoon(featureName) {
-    alert(`${featureName} 기능은 아직 준비 중이에요 (이미지 뷰어 라이브러리 도입 후 구현 예정)`);
+    alert(
+      `${featureName} 기능은 아직 준비 중이에요 (이미지 뷰어 라이브러리 도입 후 구현 예정)`,
+    );
   }
 
   return (
     <div>
-      {/* 슬라이드 전환기 — 요약화면 안 거치고 바로 다른 슬라이드로 이동 */}
-      <div
-        className="card"
-        style={{
-          marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          overflowX: 'auto',
-        }}
-      >
-        <span className="card-title" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>슬라이드</span>
-        {MOCK_SLIDES.map((name) => (
-          <button
-            key={name}
-            onClick={() => setCurrentSlide(name)}
-            className={currentSlide === name ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {name}
-          </button>
-        ))}
-      </div>
-
-      {/* sTIL / 예측구간(CP값) / 기권여부 — 검모님 필드 매핑 기준 */}
-      <div className="grid" style={{ marginBottom: 24 }}>
-        <div className="col-4">
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div className="stat-label">STIL</div>
-            <div style={{ fontSize: 40, fontWeight: 700 }}>{Math.round(MOCK_RESULT.stil_ratio * 100)}%</div>
-          </div>
+      {pendingQueue.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-md border border-seg-abstain/30 bg-seg-abstain/10 px-4 py-2.5">
+          <span className="text-sm">
+            <strong>{caseId}</strong>
+            {queueIdx !== -1 && (
+              <span className="ml-2 text-xs text-muted-foreground">
+                확인 필요 {queueIdx + 1}/{pendingQueue.length}
+              </span>
+            )}
+          </span>
+          <Button size="sm" onClick={onNextPendingCase} disabled={!hasNext}>
+            다음 확인 필요 케이스 →
+          </Button>
         </div>
+      )}
 
-        <div className="col-4">
-          <div className="card">
-            <div className="stat-label">예측구간 (CP {MOCK_RESULT.uncertainty.cp_value})</div>
-            <div style={{ position: 'relative', height: 30, margin: '10px 0' }}>
-              <div style={{ position: 'absolute', top: 13, left: 0, right: 0, height: 4, background: 'var(--border)', borderRadius: 2 }} />
+      {/* 슬라이드 전환기 */}
+      <Card className="mb-6">
+        <CardContent className="flex items-center gap-2.5 overflow-x-auto pt-4">
+          <span className="whitespace-nowrap text-sm font-medium">
+            슬라이드
+          </span>
+          {MOCK_SLIDES.map((name) => (
+            <Button
+              key={name}
+              size="sm"
+              variant={currentSlide === name ? "default" : "secondary"}
+              className="whitespace-nowrap"
+              onClick={() => setCurrentSlide(name)}
+            >
+              {name}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* sTIL / 예측구간 / 기권여부 */}
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <div className="text-xs text-muted-foreground">STIL</div>
+            <div className="font-mono text-4xl font-bold">
+              {Math.round(MOCK_RESULT.stil_ratio * 100)}%
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-xs text-muted-foreground">
+              예측구간 (CP {MOCK_RESULT.uncertainty.cp_value})
+            </div>
+            <div className="relative my-2.5 h-7">
+              <div className="absolute inset-x-0 top-3 h-1 rounded-full bg-border" />
               <div
+                className="absolute top-2.5 h-2.5 rounded-full bg-primary"
                 style={{
-                  position: 'absolute',
-                  top: 10,
-                  height: 10,
-                  background: 'var(--hema)',
-                  borderRadius: 5,
                   left: `${MOCK_RESULT.uncertainty.lower * 100}%`,
                   width: `${(MOCK_RESULT.uncertainty.upper - MOCK_RESULT.uncertainty.lower) * 100}%`,
                 }}
               />
-              <div style={{ position: 'absolute', top: 0, bottom: 0, width: 2, background: 'var(--eosin)', left: '50%' }} />
+              <div className="absolute inset-y-0 left-1/2 w-0.5 bg-seg-abstain" />
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-              {Math.round(MOCK_RESULT.uncertainty.lower * 100)}% – {Math.round(MOCK_RESULT.uncertainty.upper * 100)}%
+            <div className="text-xs text-muted-foreground">
+              {Math.round(MOCK_RESULT.uncertainty.lower * 100)}% –{" "}
+              {Math.round(MOCK_RESULT.uncertainty.upper * 100)}%
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="col-4">
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div className="stat-label">기권여부</div>
-            <div style={{ marginTop: 14 }}>
-              <span className={MOCK_RESULT.uncertainty.abstain ? 'badge badge-strong' : 'badge badge-neutral'}>
-                {MOCK_RESULT.uncertainty.abstain ? '기권' : '자동판정'}
-              </span>
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <div className="text-xs text-muted-foreground">기권여부</div>
+            <div className="mt-3.5">
+              {MOCK_RESULT.uncertainty.abstain ? (
+                <Badge className="border border-seg-abstain/40 bg-seg-abstain/10 text-seg-abstain">
+                  기권
+                </Badge>
+              ) : (
+                <Badge variant="secondary">자동판정</Badge>
+              )}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid">
-        <div className="col-7">
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              {/* 열려있는 탭들 + 닫기(x) + 탭 추가(+) */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {openTabs.map((id) => {
-                  const tab = findTabDef(id);
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setActiveTab(id)}
-                      className={activeTab === id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                      {tab.label}
-                      <span onClick={(e) => closeTab(id, e)} style={{ fontWeight: 700 }}>×</span>
-                    </button>
-                  );
-                })}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+        <div className="md:col-span-7">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex flex-wrap gap-1.5">
+                  {openTabs.map((id) => {
+                    const tab = findTabDef(id);
+                    return (
+                      <Button
+                        key={id}
+                        size="sm"
+                        variant={activeTab === id ? "default" : "secondary"}
+                        className="gap-1.5"
+                        onClick={() => setActiveTab(id)}
+                      >
+                        {tab.label}
+                        <span onClick={(e) => closeTab(id, e)}>
+                          <X size={13} />
+                        </span>
+                      </Button>
+                    );
+                  })}
 
-                <div style={{ position: 'relative' }}>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setShowAddMenu((v) => !v)}
-                    disabled={availableToAdd.length === 0}
+                  <div className="relative">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowAddMenu((v) => !v)}
+                      disabled={availableToAdd.length === 0}
+                    >
+                      <Plus size={13} />
+                    </Button>
+                    {showAddMenu && availableToAdd.length > 0 && (
+                      <div className="absolute left-0 top-[110%] z-10 min-w-[140px] rounded-lg border border-border bg-card shadow-md">
+                        {availableToAdd.map((t) => (
+                          <div
+                            key={t.id}
+                            onClick={() => addTab(t.id)}
+                            className="cursor-pointer px-3 py-2 text-xs hover:bg-accent"
+                          >
+                            {t.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setShowDownloadModal(true)}
                   >
-                    +
-                  </button>
-                  {showAddMenu && availableToAdd.length > 0 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '110%',
-                        left: 0,
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                        boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                        zIndex: 10,
-                        minWidth: 140,
-                      }}
-                    >
-                      {availableToAdd.map((t) => (
+                    <Download size={13} /> 다운로드
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={onBackToSummary}
+                  >
+                    <ArrowLeftCircle size={13} /> 요약으로 돌아가기
+                  </Button>
+                </div>
+              </div>
+
+              {activeTab === "original" && (
+                <div>
+                  <SeadragonViewer showRois={showRois} />
+                  <div className="mt-2 flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={showRois}
+                        onChange={(e) => setShowRois(e.target.checked)}
+                      />
+                      기권 부위(Abstained ROI) 표시
+                    </label>
+                    <span className="text-[10px] text-muted-foreground">
+                      ※ 데모용 이미지 · 마커 위치는 근사치 (실제 좌표 연동 전)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "seg" && (
+                <div className={cn(imgBoxClass, "relative")}>
+                  [조직 분할 및 오버레이 레이어]
+                  <div className="absolute bottom-3 right-3 flex gap-3 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px]">
+                    <label>
+                      <input type="checkbox" defaultChecked /> 종양 부위
+                    </label>
+                    <label>
+                      <input type="checkbox" defaultChecked /> 기질 영역
+                    </label>
+                    <label>
+                      <input type="checkbox" /> 오버레이 켜기
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "uncertainty" && (
+                <div className={imgBoxClass}>
+                  [MC-Dropout variance heatmap]
+                  <div className="mt-2.5 text-[11px]">
+                    평균 불확실성(σ): <strong>3.2%p</strong>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "compare" && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <div className="mb-1.5 text-xs font-semibold">
+                      원본 이미지
+                    </div>
+                    <div className={cn(imgBoxClass, "min-h-[260px]")}>
+                      [H&E 원본]
+                    </div>
+                    <div className="mt-1.5 text-right">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleComingSoon("돋보기")}
+                      >
+                        <ZoomIn size={13} /> 돋보기
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1.5 text-xs font-semibold">
+                      세그멘테이션 이미지
+                    </div>
+                    <div className={cn(imgBoxClass, "min-h-[260px]")}>
+                      [분할 오버레이]
+                    </div>
+                    <div className="mt-1.5 text-right">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleComingSoon("돋보기")}
+                      >
+                        <ZoomIn size={13} /> 돋보기
+                      </Button>
+                    </div>
+                    <div className="mt-2 flex justify-end gap-3 text-[11px]">
+                      <label>
+                        <input type="checkbox" defaultChecked /> 종양 부위
+                      </label>
+                      <label>
+                        <input type="checkbox" defaultChecked /> 기질 영역
+                      </label>
+                      <label>
+                        <input type="checkbox" /> 오버레이 켜기
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "3d" && (
+                <div className={cn(imgBoxClass, "min-h-[420px]")}>
+                  <div className="flex items-end gap-7 px-5 pb-5 pt-12">
+                    {MOCK_CLASS_RATIOS.map((c) => {
+                      const h = c.value * 5;
+                      return (
                         <div
-                          key={t.id}
-                          onClick={() => addTab(t.id)}
-                          style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}
+                          key={c.label}
+                          className="relative w-9"
+                          style={{ height: h + 16 }}
                         >
-                          {t.label}
+                          <div
+                            className="absolute bottom-0 left-9 w-3 origin-top-left"
+                            style={{
+                              height: h,
+                              background: c.color,
+                              filter: "brightness(0.6)",
+                              transform: "skewY(40deg)",
+                            }}
+                          />
+                          <div
+                            className="absolute bottom-0 left-0 w-9"
+                            style={{ height: h, background: c.color }}
+                          />
+                          <div
+                            className="absolute left-0 top-4 w-9 origin-bottom-left"
+                            style={{
+                              height: 16,
+                              background: c.color,
+                              filter: "brightness(1.35)",
+                              transform: "skewX(-40deg) scaleY(0.6)",
+                            }}
+                          />
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 다운로드 / 요약으로 돌아가기 — 상단으로 이동 */}
-              <div>
-                <button className="btn btn-secondary btn-sm" style={{ marginRight: 8 }} onClick={() => setShowDownloadModal(true)}>
-                  다운로드
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={onBackToSummary}>
-                  ← 요약으로 돌아가기
-                </button>
-              </div>
-            </div>
-
-            {/* 탭 내용 */}
-            {activeTab === 'original' && (
-              <div style={imgBoxStyle}>[H&amp;E 원본 이미지]</div>
-            )}
-
-            {activeTab === 'seg' && (
-              <div style={{ ...imgBoxStyle, position: 'relative' }}>
-                [조직 분할 및 오버레이 레이어]
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 12,
-                    right: 12,
-                    display: 'flex',
-                    gap: 12,
-                    fontSize: 11,
-                    background: 'var(--surface)',
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <label><input type="checkbox" defaultChecked /> 종양 부위</label>
-                  <label><input type="checkbox" defaultChecked /> 기질 영역</label>
-                  <label><input type="checkbox" /> 오버레이 켜기</label>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'uncertainty' && (
-              <div style={imgBoxStyle}>
-                [MC-Dropout variance heatmap]
-                <div style={{ fontSize: 11, marginTop: 10, color: 'var(--ink-soft)' }}>평균 불확실성(σ): <strong>3.2%p</strong></div>
-              </div>
-            )}
-
-            {activeTab === 'compare' && (
-              <div>
-                <div className="grid">
-                  <div className="col-6">
-                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>원본 이미지</div>
-                    <div style={{ ...imgBoxStyle, minHeight: 260 }}>[H&amp;E 원본]</div>
-                    <div style={{ textAlign: 'right', marginTop: 6 }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => handleComingSoon('돋보기')}>🔍 돋보기</button>
-                    </div>
+                      );
+                    })}
                   </div>
-                  <div className="col-6">
-                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>세그멘테이션 이미지</div>
-                    <div style={{ ...imgBoxStyle, minHeight: 260 }}>[분할 오버레이]</div>
-                    <div style={{ textAlign: 'right', marginTop: 6 }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => handleComingSoon('돋보기')}>🔍 돋보기</button>
-                    </div>
-                    {/* 이 체크박스들은 세그멘테이션 쪽 표시 옵션이라, 원본 칸이 아니라 여기(세그멘테이션 칸) 밑에 붙임 */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, fontSize: 11, marginTop: 8 }}>
-                      <label><input type="checkbox" defaultChecked /> 종양 부위</label>
-                      <label><input type="checkbox" defaultChecked /> 기질 영역</label>
-                      <label><input type="checkbox" /> 오버레이 켜기</label>
-                    </div>
+                  <div className="mt-1.5 flex flex-wrap justify-center gap-3.5 text-[11px]">
+                    {MOCK_CLASS_RATIOS.map((c) => (
+                      <span key={c.label} className="flex items-center gap-1">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-sm"
+                          style={{ background: c.color }}
+                        />
+                        {c.label} {c.value}%
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2.5 text-center text-[10px] text-muted-foreground">
+                    ※ 실제 3D 조직 재구성이 아니라, 클래스별 픽셀 비율을 입체
+                    막대로 표현한 시각화입니다.
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>해상도 2048×2048px</div>
-          </div>
+              <div className="mt-2.5 text-[11px] text-muted-foreground">
+                해상도 2048×2048px
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="col-5">
-          <div className="card" style={{ marginBottom: 24 }}>
-            <div className="card-title">데이터 통계</div>
-            <table>
-              <thead><tr><th>항목</th><th>값</th></tr></thead>
-              <tbody>
-                {MOCK_STATS.map((s) => (
-                  <tr key={s.label}><td>{s.label}</td><td>{s.value}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="md:col-span-5">
+          <Card className="mb-6">
+            <CardContent className="pt-4">
+              <div className="mb-2 text-sm font-semibold">데이터 통계</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>항목</TableHead>
+                    <TableHead>값</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {MOCK_STATS.map((s) => (
+                    <TableRow key={s.label}>
+                      <TableCell>{s.label}</TableCell>
+                      <TableCell>{s.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
-          <div className="card">
-            <div className="card-title">VLM 판독 결과지</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>요약 (segmentation_summary)</div>
-            <div style={{ fontSize: 13, marginBottom: 12 }}>{MOCK_RESULT.segmentation_summary}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>판독 소견 (findings)</div>
-            <div style={{ fontSize: 13 }}>{MOCK_RESULT.findings}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-              {MOCK_RESULT.disclaimer}
-            </div>
-          </div>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="mb-2 text-sm font-semibold">VLM 판독 결과지</div>
+              <div className="mb-2 text-[11px] text-muted-foreground">
+                요약 (segmentation_summary)
+              </div>
+              <div className="mb-3 text-sm">
+                {MOCK_RESULT.segmentation_summary}
+              </div>
+              <div className="mb-2 text-[11px] text-muted-foreground">
+                판독 소견 (findings)
+              </div>
+              <div className="text-sm">{MOCK_RESULT.findings}</div>
+              <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
+                {MOCK_RESULT.disclaimer}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {showDownloadModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ width: 280, background: 'var(--surface)' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>다운로드 형식 선택</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setShowDownloadModal(false)}>PDF</button>
-              <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setShowDownloadModal(false)}>JSON</button>
-            </div>
+      <Dialog open={showDownloadModal} onOpenChange={setShowDownloadModal}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>다운로드 형식 선택</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => setShowDownloadModal(false)}
+            >
+              PDF
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => setShowDownloadModal(false)}
+            >
+              JSON
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-const imgBoxStyle = {
-  minHeight: 420,
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  background: 'var(--bg)',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: 'var(--muted)',
-  fontSize: 13,
-  textAlign: 'center',
-  padding: 16,
-};
