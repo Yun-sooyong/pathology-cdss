@@ -43,14 +43,15 @@ class Preprocess(MsgpackMixin, Worker):
             raise ValidationError(f"GCS에서 이미지를 읽지 못함: {exc}") from exc
 
         try:
-            rgb_hwc = decode_and_stain_normalize(image_bytes)
-        except Exception as exc:  # noqa: BLE001
+            raw_hwc, rgb_hwc = decode_and_stain_normalize(image_bytes)
+        except Exception as exc:
             raise ValidationError(f"could not decode image: {exc}") from exc
 
         return {
             "job_id": data["job_id"],
             "model_name": data.get("model_name", "unet_v1"),
-            "rgb_hwc": rgb_hwc,
+            "rgb_hwc": rgb_hwc,      # 모델 입력용 (정규화 완료)
+            "raw_hwc": raw_hwc,      # 조직 판정용 (정규화 이전 원본)
         }
 
 
@@ -68,8 +69,9 @@ class Inference(MsgpackMixin, Worker):
         for item in items:
             model = self.registry.resolve(item["model_name"])
             rgb_hwc = item["rgb_hwc"]
+            raw_hwc = item["raw_hwc"]
             try:
-                masks = run_mc_dropout_tiled(model, rgb_hwc, n=config.MC_DROPOUT_N)
+                masks = run_mc_dropout_tiled(model, rgb_hwc, raw_uint8_hwc=raw_hwc, n=config.MC_DROPOUT_N)
             except ValueError as exc:
                 # 이미지가 타일 크기보다 작거나 조직 타일이 하나도 없는 경우 --
                 # 클라이언트 입력 문제이므로 500이 아니라 422로 알려줘야 함.

@@ -10,8 +10,6 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
 # H&E 염색 정규화 (Macenko et al. 2009).
-# 스캐너/기관마다 다른 염색 색감 편차를 하나의 기준 염색 프로파일로 맞춘다.
-# 원본: model-training/ 팀의 stain_normalization.py를 이식.
 _REFERENCE_STAIN_MATRIX = np.array([
     [0.5626, 0.2159],
     [0.7201, 0.8012],
@@ -19,6 +17,11 @@ _REFERENCE_STAIN_MATRIX = np.array([
 ])
 _REFERENCE_MAX_CONCENTRATION = np.array([1.9705, 1.0308])
 _OD_BACKGROUND_THRESHOLD = 0.15  # OD가 이보다 작으면 배경(흰 여백)으로 간주
+_OD_ARTIFACT_THRESHOLD = 4.0     # OD가 이보다 크면 마커펜/스캔 경계선 등 비정상 아티팩트로 간주
+                                  # (실측: baseline 조직 최댓값 3.34, 순수 검정 아티팩트 ~5.5 -- 그 사이로 여유있게 설정)
+
+IGNORE = 255  # 배경 픽셀 표시값 -- 학습 시 outside_roi를 손실에서 제외했으므로
+              # 모델은 배경을 출력할 수 없다. 서빙 단에서 후처리로 명시한다.
 
 
 def _rgb_to_od(image: np.ndarray) -> np.ndarray:
@@ -34,10 +37,20 @@ def _od_to_rgb(od: np.ndarray) -> np.ndarray:
     return np.clip(rgb, 0, 255).astype(np.uint8)
 
 
+def compute_tissue_mask(rgb_uint8_hwc: np.ndarray) -> np.ndarray:
+    """OD 기준 픽셀 단위 조직/배경 판정. True=조직, False=배경.
+    반드시 정규화 이전 원본(raw) 이미지로 계산해야 한다.
+    """
+    h, w, _ = rgb_uint8_hwc.shape
+    od = _rgb_to_od(rgb_uint8_hwc).reshape(-1, 3)
+    return np.any(od > _OD_BACKGROUND_THRESHOLD, axis=1).reshape(h, w)
+
+
 def _estimate_stain_matrix(image: np.ndarray, angular_percentile: float = 99.0) -> np.ndarray:
     """이미지에서 H&E 두 염색 벡터를 추정 (Macenko 방법)."""
     od = _rgb_to_od(image).reshape(-1, 3)
-    tissue_mask = np.any(od > _OD_BACKGROUND_THRESHOLD, axis=1)
+    max_od = od.max(axis=1)
+    tissue_mask = (max_od > _OD_BACKGROUND_THRESHOLD) & (max_od < _OD_ARTIFACT_THRESHOLD)
     od_tissue = od[tissue_mask]
     if od_tissue.shape[0] < 10:
         raise ValueError("조직으로 판단되는 픽셀이 너무 적음 (배경만 있는 이미지일 가능성)")
@@ -64,12 +77,7 @@ def _get_concentrations(image: np.ndarray, stain_matrix: np.ndarray) -> np.ndarr
 
 
 def macenko_normalize(image: np.ndarray) -> np.ndarray:
-    """source 이미지(HWC uint8)를 reference 염색 프로파일로 변환.
-
-    조직 픽셀이 너무 적어 염색 행렬을 추정할 수 없으면 ValueError를 던진다 --
-    호출부(decode_and_normalize)에서 이걸 잡아 원본 이미지로 폴백할지 결정한다
-    (학습 파이프라인의 preprocess_image()와 동일한 정책).
-    """
+    """source 이미지(HWC uint8)를 reference 염색 프로파일로 변환."""
     h, w, c = image.shape
     assert c == 3, "RGB 3채널 이미지여야 함"
     source_stain_matrix = _estimate_stain_matrix(image)
@@ -79,57 +87,41 @@ def macenko_normalize(image: np.ndarray) -> np.ndarray:
     normalized_od = scaled_concentrations.dot(_REFERENCE_STAIN_MATRIX.T)
     return _od_to_rgb(normalized_od.reshape(h, w, 3))
 
-def decode_and_stain_normalize(image_bytes: bytes) -> np.ndarray:
-    """bytes -> uint8 HWC array, H&E 염색 정규화만 적용 (픽셀 정규화/리사이즈 없음).
 
-    타일링 전에 염색 정규화까지만 해두는 이유: 타일 하나하나가 아니라 원본
-    전체를 보고 염색 행렬을 추정해야 색 변이 정보가 충분하다 (학습 파이프라인의
-    preprocess_image()와 동일한 순서). 픽셀 정규화(imagenet)는 타일 단위로
-    tile_image()가 나중에 적용한다 -- 조직 비율 판단을 원본 RGB 값으로 해야
-    하기 때문에, 이 단계에서는 아직 픽셀을 정규화하면 안 된다.
-    """
+def decode_and_stain_normalize(image_bytes: bytes):
+    """bytes -> (raw_uint8_hwc, normalized_uint8_hwc)."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    rgb_uint8 = np.asarray(img, dtype=np.uint8)  # HWC, [0,255]
+    raw_uint8 = np.asarray(img, dtype=np.uint8)
 
     try:
-        rgb_uint8 = macenko_normalize(rgb_uint8)
+        normalized_uint8 = macenko_normalize(raw_uint8)
     except ValueError:
-        # 조직이 거의 없는 이미지 -- 학습 파이프라인과 동일하게 원본을 그대로 사용.
-        pass
+        normalized_uint8 = raw_uint8
 
-    return rgb_uint8
+    return raw_uint8, normalized_uint8
 
 
 def _normalize_pixels_chw(rgb_uint8_hwc: np.ndarray) -> np.ndarray:
     """HWC uint8 -> CHW float32, ImageNet 평균/표준편차로 표준화."""
-    arr = rgb_uint8_hwc.astype(np.float32) / 255.0  # HWC, [0,1]
-    chw = arr.transpose(2, 0, 1)  # CHW
+    arr = rgb_uint8_hwc.astype(np.float32) / 255.0
+    chw = arr.transpose(2, 0, 1)
     return (chw - _MEAN) / _STD
 
-def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, stride: int = None, min_tissue_ratio: float = None):
-    """염색 정규화까지 끝난 원본 이미지를 stride 간격으로 겹치며 타일링한다.
 
-    학습 파이프라인(mc_dropout.py)과 동일한 규칙:
-      - stride < tile_size면 겹치는 슬라이딩 윈도우 (기본 50% 겹침)
-      - 마지막 타일은 이미지 경계에 맞춰 안쪽으로 당김 (패딩 없이 전체를 덮음)
-      - 이미지 자체가 tile_size보다 작으면 edge-replicate로 tile_size까지 패딩
-      - 조직이 거의 없는 타일은 건너뜀
-
-    Returns:
-        [(y, x, tile_chw), ...] -- tile_chw는 픽셀 정규화까지 끝난
-        [C, tile_size, tile_size] float32. (y, x)는 (패딩 적용된) 이미지 기준
-        좌상단 좌표.
-    """
+def tile_image(rgb_uint8_hwc: np.ndarray, raw_uint8_hwc: np.ndarray = None, tile_size: int = None, stride: int = None, min_tissue_ratio: float = None):
+    """조직 유무 판정은 raw_uint8_hwc(정규화 이전)로, 모델 입력은 rgb_uint8_hwc(정규화 후)로."""
     tile_size = tile_size or config.TILE_SIZE
     stride = stride or config.TILE_STRIDE
     min_tissue_ratio = config.MIN_TISSUE_RATIO if min_tissue_ratio is None else min_tissue_ratio
 
+    ref_uint8_hwc = raw_uint8_hwc if raw_uint8_hwc is not None else rgb_uint8_hwc
+
     h, w, _ = rgb_uint8_hwc.shape
     hp, wp = max(h, tile_size), max(w, tile_size)
     if (hp, wp) != (h, w):
-        rgb_uint8_hwc = np.pad(
-            rgb_uint8_hwc, ((0, hp - h), (0, wp - w), (0, 0)), mode="edge"
-        )
+        pad_spec = ((0, hp - h), (0, wp - w), (0, 0))
+        rgb_uint8_hwc = np.pad(rgb_uint8_hwc, pad_spec, mode="edge")
+        ref_uint8_hwc = np.pad(ref_uint8_hwc, pad_spec, mode="edge")
 
     ys = _tile_starts(hp, tile_size, stride)
     xs = _tile_starts(wp, tile_size, stride)
@@ -137,22 +129,18 @@ def tile_image(rgb_uint8_hwc: np.ndarray, tile_size: int = None, stride: int = N
     tiles = []
     for y in ys:
         for x in xs:
-            raw_tile = rgb_uint8_hwc[y:y + tile_size, x:x + tile_size]
-            od = _rgb_to_od(raw_tile).reshape(-1, 3)
+            od = _rgb_to_od(ref_uint8_hwc[y:y + tile_size, x:x + tile_size]).reshape(-1, 3)
             tissue_ratio = np.any(od > _OD_BACKGROUND_THRESHOLD, axis=1).mean()
             if tissue_ratio < min_tissue_ratio:
                 continue
-            tiles.append((y, x, _normalize_pixels_chw(raw_tile)))
+            model_tile = rgb_uint8_hwc[y:y + tile_size, x:x + tile_size]
+            tiles.append((y, x, _normalize_pixels_chw(model_tile)))
 
     if not tiles:
         raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
 
     return tiles
 
-    if not tiles:
-        raise ValueError("조직으로 판단되는 타일이 하나도 없음 (배경 이미지일 가능성)")
-
-    return tiles
 
 def build_mc_batch(image_chw: np.ndarray, n: int) -> np.ndarray:
     return np.repeat(image_chw[np.newaxis, ...], n, axis=0)
@@ -161,29 +149,16 @@ def build_mc_batch(image_chw: np.ndarray, n: int) -> np.ndarray:
 def run_mc_dropout(model: SegmentationModel, image_chw: np.ndarray, n: int = None) -> np.ndarray:
     n = n or config.MC_DROPOUT_N
     batch = build_mc_batch(image_chw, n)
-    logits = model.predict_logits(batch)  # [N, num_classes, H, W]
-    masks = np.argmax(logits, axis=1).astype(np.uint8)  # [N, H, W]
+    logits = model.predict_logits(batch)
+    masks = np.argmax(logits, axis=1).astype(np.uint8)
     return masks
 
+
 def reassemble_masks(tile_results, canvas_shape: tuple, tile_size: int = None, fill_value: int = 0) -> np.ndarray:
-    """타일별 MC Dropout 마스크 조각들을 원본 이미지 크기로 다시 이어붙인다.
-
-    tile_image()가 잘라낸 자리 그대로, 각 타일의 [N, tile_size, tile_size]
-    마스크를 (y, x) 좌표에 붙여넣는다. tile_image()가 건너뛴 자리(조직 없음)나
-    가장자리에서 잘려나간 부분은 전부 fill_value(기본 0 = ignore)로 남는다.
-
-    Args:
-        tile_results: [(y, x, tile_masks), ...] -- tile_masks shape
-            [N, tile_size, tile_size] uint8 (run_mc_dropout 출력과 동일한 형태).
-        canvas_shape: 재조립할 전체 크기 (H, W) -- 원본 이미지 크기.
-        fill_value: 타일이 없는 자리를 채울 클래스 값 (기본 0 = ignore).
-
-    Returns:
-        [N, H, W] uint8 배열.
-    """
+    """레거시 경로 -- 현재 서빙은 run_mc_dropout_tiled()를 씀."""
     tile_size = tile_size or config.TILE_SIZE
     h, w = canvas_shape
-    n = tile_results[0][2].shape[0]  # 모든 타일이 같은 N(MC 샘플 수)을 가져야 함
+    n = tile_results[0][2].shape[0]
 
     canvas = np.full((n, h, w), fill_value, dtype=np.uint8)
     for y, x, tile_masks in tile_results:
@@ -195,33 +170,26 @@ def reassemble_masks(tile_results, canvas_shape: tuple, tile_size: int = None, f
 
     return canvas
 
+
 def _softmax(logits: np.ndarray, axis: int) -> np.ndarray:
     """오버플로 방지된 softmax."""
     shifted = logits - np.max(logits, axis=axis, keepdims=True)
     exp = np.exp(shifted)
     return exp / np.sum(exp, axis=axis, keepdims=True)
 
+
 def run_mc_dropout_tiled(
     model: SegmentationModel,
     rgb_uint8_hwc: np.ndarray,
+    raw_uint8_hwc: np.ndarray = None,
     n: int = None,
     tile_size: int = None,
     stride: int = None,
     batch: int = 8,
 ) -> np.ndarray:
-    """염색 정규화까지 끝난 원본 이미지를 타일로 잘라, MC Dropout 샘플마다
-    겹친 타일들의 softmax 확률을 평균 내어 재조립한 뒤 argmax하여 반환한다.
-
-    겹침 블렌딩은 "같은 MC 샘플 안에서"만 한다 -- 서로 다른 MC 샘플의 확률을
-    섞으면 불확실도 추정이 무의미해진다. MC 샘플 k마다: 그 샘플의 모든 타일
-    예측 확률을 (패딩된 크기의) 캔버스에 누적 -> 평균 -> 마지막에 원본 크기로
-    잘라내고 argmax한다.
-
-    타일을 한꺼번에 배치로 묶지 않고 `batch`개씩 쪼개서 처리한다 -- 타일 수가
-    많은 큰 이미지에서 배치가 너무 커져 GPU 메모리를 초과하는 걸 막기 위함.
-
-    Returns:
-        [N, H, W] uint8 -- 원본 이미지 전체 크기의 MC Dropout 마스크 스택.
+    """타일별 softmax 확률을 MC 샘플 안에서만 블렌딩해 재조립한 뒤 argmax.
+    배경(raw_uint8_hwc 기준)은 IGNORE(255)로 덮어써 조직 클래스로 강제
+    배정되지 않게 한다.
     """
     n = n or config.MC_DROPOUT_N
     tile_size = tile_size or config.TILE_SIZE
@@ -229,7 +197,10 @@ def run_mc_dropout_tiled(
     h, w, _ = rgb_uint8_hwc.shape
     hp, wp = max(h, tile_size), max(w, tile_size)
 
-    tiles = tile_image(rgb_uint8_hwc, tile_size=tile_size, stride=stride)
+    tiles = tile_image(rgb_uint8_hwc, raw_uint8_hwc=raw_uint8_hwc, tile_size=tile_size, stride=stride)
+
+    ref = raw_uint8_hwc if raw_uint8_hwc is not None else rgb_uint8_hwc
+    tissue_mask = compute_tissue_mask(ref)
 
     preds = np.empty((n, h, w), dtype=np.uint8)
     for k in range(n):
@@ -238,17 +209,19 @@ def run_mc_dropout_tiled(
 
         for i in range(0, len(tiles), batch):
             chunk = tiles[i:i + batch]
-            tile_batch = np.stack([tile_chw for _, _, tile_chw in chunk])  # [b, C, tile, tile]
-            logits = model.predict_logits(tile_batch)  # [b, num_classes, tile, tile]
+            tile_batch = np.stack([tile_chw for _, _, tile_chw in chunk])
+            logits = model.predict_logits(tile_batch)
             probs = _softmax(logits, axis=1)
             for (y, x, _), tile_prob in zip(chunk, probs):
                 prob_sum[:, y:y + tile_size, x:x + tile_size] += tile_prob
                 count[y:y + tile_size, x:x + tile_size] += 1.0
 
         prob_avg = prob_sum / np.maximum(count, 1.0)
-        preds[k] = prob_avg[:, :h, :w].argmax(axis=0).astype(np.uint8)  # 패딩 제거 후 argmax
+        preds[k] = prob_avg[:, :h, :w].argmax(axis=0).astype(np.uint8)
+        preds[k][~tissue_mask] = IGNORE
 
     return preds
+
 
 def pack_masks(masks: np.ndarray) -> bytes:
     buf = io.BytesIO()
@@ -260,7 +233,8 @@ def unpack_masks(data: bytes) -> np.ndarray:
     buf = io.BytesIO(data)
     with np.load(buf) as npz:
         return npz["masks"]
-    
+
+
 def _tile_starts(size: int, patch: int, stride: int):
     """stride 간격의 타일 시작 좌표. 마지막 타일은 경계에 맞춘다."""
     if size <= patch:
@@ -269,6 +243,7 @@ def _tile_starts(size: int, patch: int, stride: int):
     if starts[-1] != size - patch:
         starts.append(size - patch)
     return starts
+
 
 from google.cloud import storage
 
