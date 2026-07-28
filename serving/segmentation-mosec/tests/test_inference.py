@@ -65,7 +65,9 @@ def test_macenko_normalize_raises_on_all_background():
 
 def test_decode_and_stain_normalize_keeps_original_size():
     raw = _fake_jpeg_bytes(size=64)
-    rgb = decode_and_stain_normalize(raw)
+    raw_out, rgb = decode_and_stain_normalize(raw)
+    assert raw_out.shape == (64, 64, 3)
+    assert raw_out.dtype == np.uint8
     assert rgb.shape == (64, 64, 3)
     assert rgb.dtype == np.uint8
 
