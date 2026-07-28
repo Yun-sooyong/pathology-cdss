@@ -11,6 +11,8 @@ from src.inference import unpack_masks
 URL = os.environ.get("MOSEC_URL", "http://127.0.0.1:8000/inference")
 TOKEN = os.environ.get("MOSEC_TOKEN")
 MODEL_NAME = os.environ.get("MOSEC_MODEL_NAME", "attention_unet_v1")
+GCS_IMAGE_PATH = os.environ.get("GCS_IMAGE_PATH", "gs://model-platform-502402-data/test/sample_tissue.png")
+
 
 def main():
     payload = {"job_id": "stil-test-1", "gcs_image_path": GCS_IMAGE_PATH, "model_name": MODEL_NAME}
@@ -36,6 +38,7 @@ def main():
     print("sigma:", stil_result["sigma"])
     print("n_valid:", stil_result["n_valid"], "/", masks.shape[0])
     print(f"elapsed: {elapsed:.2f}s")
+
 
 if __name__ == "__main__":
     main()
