@@ -8,9 +8,12 @@ resp = requests.post(url, data=msgpack.packb({"job_id": "test-1"}), headers=head
 print("case1:", resp.status_code, resp.content)
 
 # case 2: gcs_image_path는 있는데 형식이 틀린 경우
-resp = requests.post(
-    url,
-    data=msgpack.packb({"job_id": "test-2", "gcs_image_path": "not-a-gcs-path"}),
-    headers=headers,
-)
-print("case2:", resp.status_code, resp.content)
+def main():
+    resp = requests.post(
+        url,
+        data=msgpack.packb({"job_id": "test-2", "gcs_image_path": "not-a-gcs-path"}),
+        headers=headers,
+    )
+    print("case2:", resp.status_code, resp.content)
+if __name__ == "__main__":
+    main()
