@@ -51,17 +51,23 @@ def enqueue_inference(job_id: str, gcs_image_path: str, model_name: str) -> str:
     )
 
     # 실행 파라미터는 컨테이너 환경변수로 넘긴다(Job은 요청 body를 못 받으므로).
-    # 워커 스크립트는 os.environ에서 이 값들을 읽으면 된다.
+    # 워커(worker_dev/main.py)가 JOB_PAYLOAD 하나에 담긴 JSON을 읽는 구조라 그 형식에 맞춘다.
+    #   raw = os.environ.get("JOB_PAYLOAD"); payload = json.loads(raw)
+    payload = {
+        "job_id": str(job_id),
+        "model_name": model_name,
+        "gcs_image_path": gcs_image_path,  # 원본 이미지 (워커가 다운로드해서 세그멘테이션 입력)
+        # 워커가 세그 결과 이미지를 업로드할 목적지. 미리 정해서 알려준다
+        # (워커가 버킷 이름/경로 규칙을 몰라도 되게).
+        "gcs_result_path": (
+            f"gs://{settings.GCS_DATA_BUCKET}/{settings.GCS_RESULT_PREFIX}/{job_id}.png"
+        ),
+    }
+
     body = {
         "overrides": {
             "containerOverrides": [
-                {
-                    "env": [
-                        {"name": "JOB_ID", "value": str(job_id)},
-                        {"name": "GCS_IMAGE_PATH", "value": gcs_image_path},
-                        {"name": "MODEL_NAME", "value": model_name},
-                    ]
-                }
+                {"env": [{"name": "JOB_PAYLOAD", "value": json.dumps(payload)}]}
             ]
         }
     }
@@ -74,10 +80,10 @@ def enqueue_inference(job_id: str, gcs_image_path: str, model_name: str) -> str:
             "body": json.dumps(body).encode(),
             # ⚠️ Google API(*.googleapis.com) 호출은 OIDC ID 토큰이 아니라
             #    OAuth 액세스 토큰이어야 한다. oidc_token을 쓰면 401이 난다.
-            "oauth_token": {
-                "service_account_email": settings.CLOUD_TASKS_INVOKER_SA,
-                "scope": "https://www.googleapis.com/auth/cloud-platform",
-            },
+            "oauth_token": tasks_v2.OAuthToken(
+                service_account_email=settings.CLOUD_TASKS_INVOKER_SA,
+                scope="https://www.googleapis.com/auth/cloud-platform",
+            ),
         }
     }
 

@@ -155,6 +155,8 @@ SIGNED_URL_EXPIRE_MINUTES = int(os.environ.get("SIGNED_URL_EXPIRE_MINUTES", "60"
 # 업로드 이미지가 저장될 GCS 버킷과 경로 접두어 (가짜 모드에서도 prefix는 사용)
 GCS_DATA_BUCKET = os.environ.get("GCS_DATA_BUCKET")
 GCS_UPLOAD_PREFIX = os.environ.get("GCS_UPLOAD_PREFIX", "uploads")
+# 워커가 세그멘테이션 결과 이미지를 올릴 위치
+GCS_RESULT_PREFIX = os.environ.get("GCS_RESULT_PREFIX", "results")
 
 # ---- GCP: Cloud Tasks (추론 작업 큐) — tasks.py에서 사용 ----
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")

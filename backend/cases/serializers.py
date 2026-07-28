@@ -1,7 +1,12 @@
+import logging
+
 from django.conf import settings
 from rest_framework import serializers
 
 from .models import Job
+from .services import gcs
+
+logger = logging.getLogger(__name__)
 
 
 class BatchCreateSerializer(serializers.Serializer):
@@ -58,6 +63,43 @@ class JobListItemSerializer(serializers.ModelSerializer):
         fields = ["job_id", "status", "status_label", "gcs_image_path"]
 
 
+class CaseListItemSerializer(serializers.ModelSerializer):
+    """GET /api/cases 목록 항목 — 대시보드 표에 필요한 것만.
+
+    서명 URL은 일부러 넣지 않는다. 20건이면 서명 API를 20번 호출해야 해서 느리다.
+    이미지는 상세 조회(GET /api/jobs/{id})에서 받는다.
+    """
+
+    job_id = serializers.UUIDField(source="id", read_only=True)
+    batch_id = serializers.UUIDField(read_only=True)
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    abstain = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Job
+        fields = [
+            "job_id",
+            "batch_id",
+            "status",
+            "status_label",
+            "model_name",
+            "stil_value",
+            "abstain",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_abstain(self, obj):
+        """판정 유보 여부. 아직 medgemma_report에만 들어 있어서 JSON에서 꺼낸다.
+
+        (컬럼으로 승격하면 목록 필터가 빨라진다 — 향후 과제)
+        """
+        unc = (obj.medgemma_report or {}).get("uncertainty") or {}
+        if "abstain" in unc:
+            return unc["abstain"]
+        return (obj.conformal_prediction_value or {}).get("abstain")
+
+
 class BatchSerializer(serializers.Serializer):
     """GET /batches/{batch_id} 응답 — 요약(총/완료/에러) + Job 리스트 (요구사항 2·3)."""
 
@@ -72,9 +114,17 @@ class BatchSerializer(serializers.Serializer):
 
 
 class JobSerializer(serializers.ModelSerializer):
-    """GET /jobs/{job_id} 응답 — 항목 클릭 시 보여줄 개별 결과 전체 (요구사항 3)."""
+    """GET /jobs/{job_id} 응답 — 항목 클릭 시 보여줄 개별 결과 전체 (요구사항 3).
+
+    버킷이 비공개라 gs:// 경로로는 브라우저가 이미지를 못 연다.
+    그래서 조회(GET) 시에는 정해진 시간 동안만 유효한 서명 URL을 함께 내려준다.
+    (context에 with_urls=True 를 넘긴 경우에만 발급 — PATCH 응답에서는 불필요한
+     서명 API 호출로 지연이 생기지 않도록)
+    """
 
     job_id = serializers.UUIDField(source="id", read_only=True)
+    image_url = serializers.SerializerMethodField()   # 원본 조직 이미지
+    result_url = serializers.SerializerMethodField()  # 세그멘테이션 마스크 이미지
 
     class Meta:
         model = Job
@@ -83,12 +133,30 @@ class JobSerializer(serializers.ModelSerializer):
             "status",
             "model_name",
             "gcs_image_path",
+            "image_url",
             "stil_value",
             "conformal_prediction_value",
             "gcs_result_path",
+            "result_url",
             "medgemma_report",
             "error_message",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def _signed(self, gcs_uri):
+        if not self.context.get("with_urls") or not gcs_uri:
+            return None
+        try:
+            return gcs.generate_download_url(gcs_uri)
+        except Exception:
+            # 서명 실패가 조회 전체를 막지 않도록 한다(이미지만 안 보임).
+            logger.exception("서명 URL 발급 실패: %s", gcs_uri)
+            return None
+
+    def get_image_url(self, obj):
+        return self._signed(obj.gcs_image_path)
+
+    def get_result_url(self, obj):
+        return self._signed(obj.gcs_result_path)

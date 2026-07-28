@@ -101,3 +101,45 @@ def generate_upload_url(blob_name: str, content_type: str = "application/octet-s
         service_account_email=credentials.service_account_email,
         access_token=credentials.token,
     )
+
+
+def _split_gcs_uri(gcs_uri: str) -> tuple:
+    """'gs://버킷/경로/파일.png' → ('버킷', '경로/파일.png')."""
+    if not gcs_uri or not gcs_uri.startswith("gs://"):
+        raise ValueError(f"gs:// 경로가 아닙니다: {gcs_uri!r}")
+    bucket_name, _, blob_path = gcs_uri[len("gs://"):].partition("/")
+    if not blob_path:
+        raise ValueError(f"경로에 파일명이 없습니다: {gcs_uri!r}")
+    return bucket_name, blob_path
+
+
+def generate_download_url(gcs_uri: str) -> str:
+    """브라우저가 비공개 버킷의 이미지를 볼 수 있는 V4 서명 URL(GET)을 만든다.
+
+    버킷은 비공개로 유지한 채, 이 URL을 가진 사람만 정해진 시간 동안
+    해당 파일 하나에 접근할 수 있다. (프론트 상세 화면의 <img src>에 그대로 사용)
+
+    Args:
+        gcs_uri: "gs://버킷/uploads/xxx.png" 형식의 경로
+
+    Returns:
+        서명된 https URL. 경로가 비어 있으면 None.
+    """
+    if not gcs_uri:
+        return None
+    if settings.LOCAL_FAKE_GCP:
+        return f"https://fake-download.invalid/{gcs_uri}"
+
+    bucket_name, blob_path = _split_gcs_uri(gcs_uri)
+    blob = _get_client().bucket(bucket_name).blob(blob_path)
+
+    credentials, _ = google.auth.default()
+    credentials.refresh(google_requests.Request())
+
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=settings.SIGNED_URL_EXPIRE_MINUTES),
+        method="GET",
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token,
+    )

@@ -1,6 +1,7 @@
 import logging 
 
 from django.conf import settings
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -10,6 +11,7 @@ from .models import Batch, Job
 from .serializers import (
     BatchCreateSerializer,
     BatchInitSerializer,
+    CaseListItemSerializer,
     BatchSerializer,
     JobSerializer,
 )
@@ -76,6 +78,68 @@ def upload(request):
 
     # 3) 프론트엔드는 이 batch_id로 이후 진행상황/결과를 조회한다.
     return Response({"batch_id": str(batch.id)}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+def case_list(request):
+    """GET /api/cases — 대시보드용 최근 케이스 목록.
+
+    쿼리 파라미터:
+      limit   기본 20, 최대 100
+      offset  기본 0
+      status  waiting / processing / stil_done / done / error
+      abstain true 면 판정 유보 건만
+
+    응답: { count, summary{...}, results[...] }
+      count   : 필터가 적용된 총 건수(페이징 전)
+      summary : 필터와 무관한 전체 통계 (대시보드 상단 카드용)
+    """
+    try:
+        limit = min(max(int(request.query_params.get("limit", 20)), 1), 100)
+        offset = max(int(request.query_params.get("offset", 0)), 0)
+    except ValueError:
+        return Response(
+            {"detail": "limit/offset은 정수여야 합니다."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    qs = Job.objects.all()  # Meta.ordering = ["-created_at"] → 최신순
+
+    status_filter = request.query_params.get("status")
+    if status_filter:
+        if status_filter not in dict(Job.STATUS_CHOICES):
+            return Response(
+                {"detail": f"허용되지 않는 status 값입니다: {status_filter}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = qs.filter(status=status_filter)
+
+    # 판정 유보 필터 — 아직 JSON 안에 있어서 JSONField 조회로 거른다.
+    if request.query_params.get("abstain", "").lower() == "true":
+        qs = qs.filter(medgemma_report__uncertainty__abstain=True)
+
+    count = qs.count()
+    page = qs[offset : offset + limit]
+
+    # 상단 카드용 통계 — 필터와 무관하게 전체 기준으로 센다.
+    by_status = dict(
+        Job.objects.values_list("status").annotate(n=Count("id")).values_list("status", "n")
+    )
+    summary = {
+        "total": sum(by_status.values()),
+        "waiting": by_status.get(Job.STATUS_WAITING, 0),
+        "processing": by_status.get(Job.STATUS_PROCESSING, 0),
+        "stil_done": by_status.get(Job.STATUS_STIL_DONE, 0),
+        "done": by_status.get(Job.STATUS_DONE, 0),
+        "error": by_status.get(Job.STATUS_ERROR, 0),
+        "abstain": Job.objects.filter(medgemma_report__uncertainty__abstain=True).count(),
+    }
+
+    return Response({
+        "count": count,
+        "summary": summary,
+        "results": CaseListItemSerializer(page, many=True).data,
+    })
 
 
 @api_view(["POST"])
@@ -193,10 +257,72 @@ def batch_result(request, batch_id):
     return Response(BatchSerializer(batch).data)
 
 
-@api_view(["GET"])
-def job_result(request, job_id):
-    """GET /api/jobs/{job_id} — 리스트에서 항목 클릭 시 개별 결과."""
+# 워커는 status를 한글 라벨("sTIL 완료", "완료")로 보내고,
+# 프론트/내부에서는 영문 키("stil_done", "done")를 쓴다. 둘 다 받아들인다.
+_STATUS_LOOKUP = {key: key for key, _ in Job.STATUS_CHOICES}
+_STATUS_LOOKUP.update({label: key for key, label in Job.STATUS_CHOICES})
+
+# 워커는 cp_value 하나만 보내지만 모델 컬럼은 JSON이라 dict로 감싸 저장한다.
+# lower/upper/abstain 등을 함께 보내오면 같이 담는다.
+_CP_SUBFIELDS = ("cp_value", "lower", "upper", "abstain", "decision", "sigma", "n_valid")
+
+# 워커가 직접 덮어쓸 수 있는 컬럼
+_WRITABLE_FIELDS = {
+    "status",
+    "stil_value",
+    "conformal_prediction_value",
+    "gcs_result_path",
+    "medgemma_report",
+    "error_message",
+}
+
+
+@api_view(["GET", "PATCH"])
+def job_detail(request, job_id):
+    """GET  /api/jobs/{job_id}   — 프론트가 개별 결과를 조회
+    PATCH /api/jobs/{job_id}/   — 워커(담당자 E)가 처리 결과를 써 넣음
+
+    워커 호출 예시:
+      1차: {"status": "sTIL 완료", "stil_value": 4.75, "cp_value": 0.88}
+      2차: {"status": "완료", "medgemma_report": {...}}
+    """
     job = get_object_or_404(Job, pk=job_id)
+
+    if request.method == "GET":
+        # 프론트가 <img src>로 바로 쓸 수 있게 서명 URL을 함께 내려준다.
+        return Response(JobSerializer(job, context={"with_urls": True}).data)
+
+    # --- 아래는 PATCH (워커의 결과 기록) ---
+    updates = {k: v for k, v in request.data.items() if k in _WRITABLE_FIELDS}
+
+    # status가 한글 라벨로 오면 영문 키로 변환한다.
+    if "status" in updates:
+        raw = updates["status"]
+        key = _STATUS_LOOKUP.get(raw)
+        if key is None:
+            return Response(
+                {"detail": f"허용되지 않는 status 값입니다: {raw}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        updates["status"] = key
+
+    # cp_value 등 conformal 관련 값들을 JSON 컬럼 하나로 합쳐 저장한다.
+    cp = {k: request.data[k] for k in _CP_SUBFIELDS if k in request.data}
+    if cp:
+        merged = dict(job.conformal_prediction_value or {})
+        merged.update(cp)
+        updates["conformal_prediction_value"] = merged
+
+    if not updates:
+        return Response(
+            {"detail": "갱신할 필드가 없습니다."}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    for field, value in updates.items():
+        setattr(job, field, value)
+    job.save()
+
+    logger.info("Job 갱신(PATCH): job=%s fields=%s", job_id, list(updates.keys()))
     return Response(JobSerializer(job).data)
 
 

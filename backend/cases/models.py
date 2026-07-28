@@ -45,17 +45,21 @@ class Job(models.Model) :
     # 정의된 Job table 구현 
 
     # 작업 상태 값 정의 
-    STATUS_WAITING = "waiting"       # queue 등록 직후, 시작전 
-    STATUS_PROCESSING = "processing" # 실행 중, 추론 진행 
-    STATUS_ERROR = "error"           # 오류 발생 
-    STATUS_DONE = "done"             # 추론 완료, 결과필드 생성 
+    STATUS_WAITING = "waiting"       # queue 등록 직후, 시작전
+    STATUS_PROCESSING = "processing" # 실행 중, 추론 진행
+    STATUS_STIL_DONE = "stil_done"   # sTIL/Conformal 까지 끝남, MedGemma 리포트 대기
+    STATUS_ERROR = "error"           # 오류 발생
+    STATUS_DONE = "done"             # 추론 완료, 결과필드 생성
     
     # (키, 라벨) 형태
     # choice 에 넣으면 admin/serializer 가 허용된 키만 받도록 검증 가능
     # get_status_display() 로 한글 라벨을 꺼내서 쓸 수 있음 
+    # 라벨은 워커(담당자 E)가 보내는 한글 문자열과 일치시켜 둔다.
+    # 워커가 status="sTIL 완료" / "완료" 로 보내면 뷰에서 키로 변환해 저장한다.
     STATUS_CHOICES = [
         (STATUS_WAITING, "대기"),
         (STATUS_PROCESSING, "진행중"),
+        (STATUS_STIL_DONE, "sTIL 완료"),
         (STATUS_ERROR, "오류"),
         (STATUS_DONE, "완료"),
     ]
@@ -64,8 +68,11 @@ class Job(models.Model) :
     MODEL_UNET_V1 = "unet_v1"
     MODEL_ATTENTION_UNET_V1 = "attention_unet_v1"
     
+    # ⚠️ unet_v1은 conformal 보정상수(q)가 아직 없어서 선택지에서 제외한다.
+    # 워커(til_conformal)는 보정 안 된 모델이 오면 예외를 던져 처리를 중단한다.
+    # (보정 없이 계산한 예측구간은 겉보기엔 정상이라 오류를 못 알아채기 때문)
+    # calibration이 끝나면 아래에 다시 추가할 것.
     MODEL_CHOICES = [
-        (MODEL_UNET_V1, "unet_v1"),
         (MODEL_ATTENTION_UNET_V1, "attention_unet_v1"),
     ]
     
