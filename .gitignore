@@ -1,3 +1,14 @@
+# === Python (backend/, model-training/, worker/, serving/) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.yaml
 
 # Preprocessed data (generated)
 preprocessed_data/
