@@ -1,0 +1,6 @@
+numpy
+pillow
+requests
+msgpack
+google-cloud-storage
+google-auth
