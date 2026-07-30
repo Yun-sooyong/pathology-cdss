@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Microscope,
@@ -8,26 +8,31 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { MOCK_CASES } from "../mockCases";
-
-const abstainCount = MOCK_CASES.filter((c) => c.abstain === true).length;
-
-const NAV_ITEMS = [
-  { label: "대시보드", icon: LayoutDashboard, to: "/", active: true },
-  { label: "케이스 보드", icon: Microscope, to: "/board" },
-  {
-    label: "AI 기권 검증함",
-    icon: TriangleAlert,
-    to: "/?filter=abstain",
-    badge: abstainCount,
-    active: true,
-  },
-  { label: "AI 품질 통계", icon: BarChart3, to: "/quality" },
-];
+import { getCases } from "../api";
 
 export default function Sidebar() {
   const location = useLocation();
   const [isLight, setIsLight] = useState(false);
+  const [abstainCount, setAbstainCount] = useState(0);
+
+  useEffect(() => {
+    getCases({ limit: 1 })
+      .then((data) => setAbstainCount(data.summary?.abstain ?? 0))
+      .catch((err) => console.error("기권 건수 조회 실패:", err));
+  }, []);
+
+  const NAV_ITEMS = [
+    { label: "대시보드", icon: LayoutDashboard, to: "/", active: true },
+    { label: "케이스 보드", icon: Microscope, to: "/board" },
+    {
+      label: "AI 기권 검증함",
+      icon: TriangleAlert,
+      to: "/?filter=abstain",
+      badge: abstainCount,
+      active: true,
+    },
+    { label: "AI 품질 통계", icon: BarChart3, to: "/quality" },
+  ];
 
   function toggleTheme() {
     const next = !isLight;

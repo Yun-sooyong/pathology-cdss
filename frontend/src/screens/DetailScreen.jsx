@@ -135,23 +135,17 @@ function SegmentationOverlay({ imageUrl, maskUrl }) {
   );
 }
 
-const MOCK_STATS = [
-  { label: "inflammatory 픽셀", value: "81,204" },
-  { label: "stroma 픽셀", value: "91,830" },
-  { label: "sTIL = infl/(infl+stroma)", value: "47.0%" },
-];
+const DEFAULT_DISCLAIMER =
+  "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다.";
 
-const MOCK_RESULT = {
-  stil_ratio: 0.47,
-  uncertainty: { cp_value: 0.86, lower: 0.38, upper: 0.56, abstain: true },
-  segmentation_summary:
-    "[segmentation_summary 필드 — 조직 유형별 비율 요약 1~2문장]",
-  findings: "[findings 필드 — MedGemma가 종합 판단해 생성하는 판독 소견 전문]",
-  disclaimer:
-    "본 결과는 AI 보조 도구의 출력이며 의료진의 최종 판단이 필요합니다.",
+const EMPTY_RESULT = {
+  stil_ratio: 0,
+  uncertainty: { cp_value: 0, lower: 0, upper: 0, abstain: false },
+  segmentation_summary: "",
+  findings: "",
+  disclaimer: DEFAULT_DISCLAIMER,
+  classComposition: null,
 };
-
-const MOCK_SLIDES = ["slide_0231.tiff", "slide_0232.tiff", "slide_0233.tiff"];
 
 function findTabDef(id) {
   return TAB_DEFS.find((t) => t.id === id);
@@ -275,17 +269,16 @@ const imgBoxClass =
 export default function DetailScreen({
   caseId,
   realJob,
-  mockThumbnail,
   pendingQueue = [],
   onNextPendingCase,
   onBackToSummary,
 }) {
-  const [currentSlide, setCurrentSlide] = useState(MOCK_SLIDES[0]);
   const queueIdx = pendingQueue.indexOf(caseId);
   const hasNext = queueIdx !== -1 && queueIdx < pendingQueue.length - 1;
 
-  // 실제 job 데이터가 있으면 그걸 쓰고, 없으면(대시보드에서 mock 케이스로 들어온 경우) MOCK_RESULT로 대체
   const report = realJob?.medgemma_report;
+  const slideName =
+    realJob?.gcs_image_path?.split("/").pop() ?? realJob?.job_id ?? caseId ?? null;
 
   const result = realJob
     ? {
@@ -301,12 +294,12 @@ export default function DetailScreen({
         },
         segmentation_summary: report?.segmentation_summary ?? "",
         findings: report?.findings ?? "",
-        disclaimer: report?.disclaimer ?? MOCK_RESULT.disclaimer,
+        disclaimer: report?.disclaimer ?? DEFAULT_DISCLAIMER,
         classComposition: report?.class_composition ?? null,
       }
-    : MOCK_RESULT;
+    : EMPTY_RESULT;
 
-  const realImageUrl = realJob?.image_url ?? mockThumbnail ?? null;
+  const realImageUrl = realJob?.image_url ?? null;
   const realMaskUrl = realJob?.result_url ?? null;
   const [openTabs, setOpenTabs] = useState([
     "original",
@@ -353,23 +346,15 @@ export default function DetailScreen({
         </div>
       )}
 
-      {/* 슬라이드 전환기 */}
+      {/* 슬라이드 정보 */}
       <Card className="mb-6">
         <CardContent className="flex items-center gap-2.5 overflow-x-auto pt-4">
           <span className="whitespace-nowrap text-sm font-medium">
             슬라이드
           </span>
-          {MOCK_SLIDES.map((name) => (
-            <Button
-              key={name}
-              size="sm"
-              variant={currentSlide === name ? "default" : "secondary"}
-              className="whitespace-nowrap"
-              onClick={() => setCurrentSlide(name)}
-            >
-              {name}
-            </Button>
-          ))}
+          <Button size="sm" variant="default" className="whitespace-nowrap">
+            {slideName ?? "이미지 정보 없음"}
+          </Button>
         </CardContent>
       </Card>
 
@@ -496,9 +481,7 @@ export default function DetailScreen({
                   <div className="mt-2 text-right text-[10px] text-muted-foreground">
                     {realJob?.image_url
                       ? "실제 업로드 이미지"
-                      : mockThumbnail
-                        ? "예시 이미지 (실제 케이스 사진 아님)"
-                        : "※ 데모용 이미지 (실제 이미지 연동 전)"}
+                      : "※ 이미지 정보 없음"}
                   </div>
                 </div>
               )}
@@ -514,8 +497,15 @@ export default function DetailScreen({
                 <div>
                   <UncertaintyTerrain />
                   <div className="mt-2.5 text-[11px] text-muted-foreground">
-                    평균 불확실성(σ):{" "}
-                    <strong className="text-foreground">3.2%p</strong>
+                    예측구간 폭:{" "}
+                    <strong className="text-foreground">
+                      {realJob
+                        ? `±${(
+                            ((result.uncertainty.upper - result.uncertainty.lower) / 2) *
+                            100
+                          ).toFixed(1)}%p`
+                        : "데이터 없음"}
+                    </strong>
                   </div>
                 </div>
               )}
@@ -647,12 +637,11 @@ export default function DetailScreen({
                       </TableRow>
                     </>
                   ) : (
-                    MOCK_STATS.map((s) => (
-                      <TableRow key={s.label}>
-                        <TableCell>{s.label}</TableCell>
-                        <TableCell>{s.value}</TableCell>
-                      </TableRow>
-                    ))
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-center text-muted-foreground">
+                        데이터 통계 준비중
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -665,14 +654,13 @@ export default function DetailScreen({
                 요약 (segmentation_summary)
               </div>
               <div className="mb-3 text-sm">
-                {result.segmentation_summary ||
-                  MOCK_RESULT.segmentation_summary}
+                {result.segmentation_summary || "분석 결과 준비 중입니다."}
               </div>
               <div className="mb-2 text-[11px] text-muted-foreground">
                 판독 소견 (findings)
               </div>
               <div className="text-sm">
-                {result.findings || MOCK_RESULT.findings}
+                {result.findings || "분석 결과 준비 중입니다."}
               </div>
               <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
                 {result.disclaimer}

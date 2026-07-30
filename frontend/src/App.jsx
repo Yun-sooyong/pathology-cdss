@@ -44,9 +44,8 @@ function App() {
     navigate("/upload");
   }
 
-  // caseId는 이제 실제 job_id. mock 케이스에서 온 경우엔 mockThumbnail도 같이 전달.
-  function handleViewCase(caseId, mockThumbnail) {
-    navigate(`/detail/${caseId}`, { state: { mockThumbnail } });
+  function handleViewCase(caseId) {
+    navigate(`/detail/${caseId}`);
   }
 
   async function handleComplete(batch) {
@@ -197,7 +196,6 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
   const { caseId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const mockThumbnail = location.state?.mockThumbnail ?? null;
   const [realJob, setRealJob] = useState(location.state?.job ?? null);
 
   useEffect(() => {
@@ -228,7 +226,6 @@ function DetailRoute({ pendingQueue, onBackToSummary }) {
     <DetailScreen
       caseId={caseId}
       realJob={realJob}
-      mockThumbnail={mockThumbnail}
       pendingQueue={pendingQueue}
       onNextPendingCase={handleNextPendingCase}
       onBackToSummary={onBackToSummary}
