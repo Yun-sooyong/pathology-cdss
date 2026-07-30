@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+staticfiles/
+.git/
+.gitignore
+*.md
+.pytest_cache/
+.coverage
+cloud-sql-proxy.exe
