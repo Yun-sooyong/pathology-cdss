@@ -14,12 +14,7 @@ function StatusBadge({ status, label }) {
   return <Badge variant="secondary">{label}</Badge>;
 }
 
-export default function ErrorScreen({
-  batch,
-  files,
-  onGenerateReport,
-  onBackToUpload,
-}) {
+export default function ErrorScreen({ batch, files, onBackToUpload }) {
   const hasRealBatch = !!batch;
 
   const jobs = hasRealBatch
@@ -89,10 +84,7 @@ export default function ErrorScreen({
           </div>
         )}
 
-        <div className="mt-6 flex justify-between">
-          <Button variant="secondary" onClick={onGenerateReport}>
-            오류리포트 (전달용)
-          </Button>
+        <div className="mt-6 flex justify-end">
           <Button onClick={onBackToUpload}>다시 업로드</Button>
         </div>
       </CardContent>
