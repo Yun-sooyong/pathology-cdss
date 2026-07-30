@@ -1,13 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import UncertaintyTerrain from "../components/UncertaintyTerrain";
 import OpenSeadragon from "openseadragon";
-import {
-  Download,
-  ArrowLeftCircle,
-  X,
-  Plus,
-  ZoomIn,
-} from "lucide-react";
+import { Download, ArrowLeftCircle, X, Plus, ZoomIn } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +31,6 @@ const TAB_DEFS = [
 const PLACEHOLDER_DZI =
   "https://openseadragon.github.io/example-images/duomo/duomo.dzi";
 
-
-
-
 function SeadragonViewer({ imageUrl }) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
@@ -50,7 +41,9 @@ function SeadragonViewer({ imageUrl }) {
     setLoadFailed(false);
     viewerRef.current = OpenSeadragon({
       element: containerRef.current,
-      tileSources: imageUrl ? { type: "image", url: imageUrl } : PLACEHOLDER_DZI,
+      tileSources: imageUrl
+        ? { type: "image", url: imageUrl }
+        : PLACEHOLDER_DZI,
       prefixUrl:
         "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/",
       drawer: "canvas",
@@ -120,7 +113,9 @@ function SegmentationOverlay({ imageUrl, maskUrl }) {
           오버레이 켜기
         </label>
         <div className="flex flex-1 items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">마스크 투명도</span>
+          <span className="text-[11px] text-muted-foreground">
+            마스크 투명도
+          </span>
           <input
             type="range"
             min="0"
@@ -177,7 +172,9 @@ function downloadJsonReport({ caseId, realJob, result }) {
     model_name: realJob?.model_name ?? null,
     generated_at: new Date().toISOString(),
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -202,7 +199,13 @@ async function imageUrlToBase64(url) {
   }
 }
 
-async function downloadPdfReport({ caseId, realJob, realImageUrl, realMaskUrl, result }) {
+async function downloadPdfReport({
+  caseId,
+  realJob,
+  realImageUrl,
+  realMaskUrl,
+  result,
+}) {
   const stilPercent = Math.round(result.stil_ratio * 100 * 100) / 100;
   const lower = Math.round(result.uncertainty.lower * 100 * 100) / 100;
   const upper = Math.round(result.uncertainty.upper * 100 * 100) / 100;
@@ -283,11 +286,15 @@ export default function DetailScreen({
 
   // 실제 job 데이터가 있으면 그걸 쓰고, 없으면(대시보드에서 mock 케이스로 들어온 경우) MOCK_RESULT로 대체
   const report = realJob?.medgemma_report;
+
   const result = realJob
     ? {
         stil_ratio: (realJob.stil_value ?? report?.stil_ratio ?? 0) / 100,
         uncertainty: {
-          cp_value: report?.uncertainty?.cp_value ?? realJob.conformal_prediction_value?.cp_value ?? 0,
+          cp_value:
+            report?.uncertainty?.cp_value ??
+            realJob.conformal_prediction_value?.cp_value ??
+            0,
           lower: (report?.uncertainty?.lower ?? 0) / 100,
           upper: (report?.uncertainty?.upper ?? 0) / 100,
           abstain: report?.uncertainty?.abstain ?? false,
@@ -295,17 +302,22 @@ export default function DetailScreen({
         segmentation_summary: report?.segmentation_summary ?? "",
         findings: report?.findings ?? "",
         disclaimer: report?.disclaimer ?? MOCK_RESULT.disclaimer,
+        classComposition: report?.class_composition ?? null,
       }
     : MOCK_RESULT;
 
   const realImageUrl = realJob?.image_url ?? mockThumbnail ?? null;
   const realMaskUrl = realJob?.result_url ?? null;
-  const [openTabs, setOpenTabs] = useState(["original", "seg", "uncertainty", "compare"]);
+  const [openTabs, setOpenTabs] = useState([
+    "original",
+    "seg",
+    "uncertainty",
+    "compare",
+  ]);
   const [activeTab, setActiveTab] = useState("original");
   const [showAddMenu, setShowAddMenu] = useState(false);
- const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [zoomImage, setZoomImage] = useState(null); // { url, label }
-
 
   const availableToAdd = TAB_DEFS.filter((t) => !openTabs.includes(t.id));
 
@@ -322,7 +334,6 @@ export default function DetailScreen({
     setActiveTab(id);
     setShowAddMenu(false);
   }
-
 
   return (
     <div>
@@ -383,8 +394,8 @@ export default function DetailScreen({
               <div
                 className="absolute top-2.5 h-2.5 rounded-full bg-primary"
                 style={{
-                 left: `${result.uncertainty.lower * 100}%`,
-                width: `${(result.uncertainty.upper - result.uncertainty.lower) * 100}%`,
+                  left: `${result.uncertainty.lower * 100}%`,
+                  width: `${(result.uncertainty.upper - result.uncertainty.lower) * 100}%`,
                 }}
               />
               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-seg-abstain" />
@@ -479,7 +490,7 @@ export default function DetailScreen({
                 </div>
               </div>
 
-             {activeTab === "original" && (
+              {activeTab === "original" && (
                 <div>
                   <SeadragonViewer imageUrl={realImageUrl} />
                   <div className="mt-2 text-right text-[10px] text-muted-foreground">
@@ -492,15 +503,19 @@ export default function DetailScreen({
                 </div>
               )}
 
-             {activeTab === "seg" && (
-                <SegmentationOverlay imageUrl={realImageUrl} maskUrl={realMaskUrl} />
+              {activeTab === "seg" && (
+                <SegmentationOverlay
+                  imageUrl={realImageUrl}
+                  maskUrl={realMaskUrl}
+                />
               )}
 
               {activeTab === "uncertainty" && (
                 <div>
                   <UncertaintyTerrain />
                   <div className="mt-2.5 text-[11px] text-muted-foreground">
-                    평균 불확실성(σ): <strong className="text-foreground">3.2%p</strong>
+                    평균 불확실성(σ):{" "}
+                    <strong className="text-foreground">3.2%p</strong>
                   </div>
                 </div>
               )}
@@ -510,7 +525,12 @@ export default function DetailScreen({
                     <div className="mb-1.5 text-xs font-semibold">
                       원본 이미지
                     </div>
-                    <div className={cn(imgBoxClass, "min-h-[260px] overflow-hidden p-0")}>
+                    <div
+                      className={cn(
+                        imgBoxClass,
+                        "min-h-[260px] overflow-hidden p-0",
+                      )}
+                    >
                       {realImageUrl ? (
                         <img
                           src={realImageUrl}
@@ -526,7 +546,12 @@ export default function DetailScreen({
                         size="sm"
                         variant="secondary"
                         disabled={!realImageUrl}
-                        onClick={() => setZoomImage({ url: realImageUrl, label: "원본 이미지" })}
+                        onClick={() =>
+                          setZoomImage({
+                            url: realImageUrl,
+                            label: "원본 이미지",
+                          })
+                        }
                       >
                         <ZoomIn size={13} /> 돋보기
                       </Button>
@@ -536,7 +561,12 @@ export default function DetailScreen({
                     <div className="mb-1.5 text-xs font-semibold">
                       세그멘테이션 이미지
                     </div>
-                    <div className={cn(imgBoxClass, "min-h-[260px] overflow-hidden p-0")}>
+                    <div
+                      className={cn(
+                        imgBoxClass,
+                        "min-h-[260px] overflow-hidden p-0",
+                      )}
+                    >
                       {realMaskUrl ? (
                         <img
                           src={realMaskUrl}
@@ -552,7 +582,12 @@ export default function DetailScreen({
                         size="sm"
                         variant="secondary"
                         disabled={!realMaskUrl}
-                        onClick={() => setZoomImage({ url: realMaskUrl, label: "세그멘테이션 마스크" })}
+                        onClick={() =>
+                          setZoomImage({
+                            url: realMaskUrl,
+                            label: "세그멘테이션 마스크",
+                          })
+                        }
                       >
                         <ZoomIn size={13} /> 돋보기
                       </Button>
@@ -560,7 +595,6 @@ export default function DetailScreen({
                   </div>
                 </div>
               )}
-
 
               <div className="mt-2.5 text-[11px] text-muted-foreground">
                 해상도 2048×2048px
@@ -581,30 +615,65 @@ export default function DetailScreen({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_STATS.map((s) => (
-                    <TableRow key={s.label}>
-                      <TableCell>{s.label}</TableCell>
-                      <TableCell>{s.value}</TableCell>
-                    </TableRow>
-                  ))}
+                  {result.classComposition ? (
+                    <>
+                      <TableRow>
+                        <TableCell>tumor 비율</TableCell>
+                        <TableCell>{result.classComposition.tumor}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>stroma 비율</TableCell>
+                        <TableCell>{result.classComposition.stroma}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>immune 비율</TableCell>
+                        <TableCell>{result.classComposition.immune}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>necrosis 비율</TableCell>
+                        <TableCell>
+                          {result.classComposition.necrosis}%
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>other 비율</TableCell>
+                        <TableCell>{result.classComposition.other}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>sTIL = immune/(immune+stroma)</TableCell>
+                        <TableCell>
+                          {Math.round(result.stil_ratio * 100 * 100) / 100}%
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  ) : (
+                    MOCK_STATS.map((s) => (
+                      <TableRow key={s.label}>
+                        <TableCell>{s.label}</TableCell>
+                        <TableCell>{s.value}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="pt-4">
               <div className="mb-2 text-sm font-semibold">VLM 판독 결과지</div>
               <div className="mb-2 text-[11px] text-muted-foreground">
                 요약 (segmentation_summary)
               </div>
-             <div className="mb-3 text-sm">
-                {result.segmentation_summary || MOCK_RESULT.segmentation_summary}
+              <div className="mb-3 text-sm">
+                {result.segmentation_summary ||
+                  MOCK_RESULT.segmentation_summary}
               </div>
               <div className="mb-2 text-[11px] text-muted-foreground">
                 판독 소견 (findings)
               </div>
-              <div className="text-sm">{result.findings || MOCK_RESULT.findings}</div>
+              <div className="text-sm">
+                {result.findings || MOCK_RESULT.findings}
+              </div>
               <div className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
                 {result.disclaimer}
               </div>
@@ -624,7 +693,13 @@ export default function DetailScreen({
               className="w-full"
               onClick={async () => {
                 setShowDownloadModal(false);
-                await downloadPdfReport({ caseId, realJob, realImageUrl, realMaskUrl, result });
+                await downloadPdfReport({
+                  caseId,
+                  realJob,
+                  realImageUrl,
+                  realMaskUrl,
+                  result,
+                });
               }}
             >
               PDF
@@ -643,7 +718,10 @@ export default function DetailScreen({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!zoomImage} onOpenChange={(open) => !open && setZoomImage(null)}>
+      <Dialog
+        open={!!zoomImage}
+        onOpenChange={(open) => !open && setZoomImage(null)}
+      >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{zoomImage?.label}</DialogTitle>
