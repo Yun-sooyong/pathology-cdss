@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  useNavigate,
+  useParams,
+  useLocation,
+} from "react-router-dom";
 import TopNav from "./components/TopNav";
 import Sidebar from "./components/Sidebar";
 import CaseBoardScreen from "./screens/CaseBoardScreen";
@@ -52,7 +58,7 @@ function App() {
     const jobs = batch?.jobs ?? [];
     try {
       const detailedJobs = await Promise.all(
-        jobs.map((j) => getJobDetail(j.job_id))
+        jobs.map((j) => getJobDetail(j.job_id)),
       );
       setCompletedResults(detailedJobs);
     } catch (err) {
@@ -70,9 +76,12 @@ function App() {
       await Promise.all(
         uploads.map((u, i) =>
           uploadToSignedUrl(u.upload_url, files[i].file, (percent) => {
-            setUploadProgress((prev) => ({ ...prev, [files[i].name]: percent }));
-          })
-        )
+            setUploadProgress((prev) => ({
+              ...prev,
+              [files[i].name]: percent,
+            }));
+          }),
+        ),
       );
       await startBatch(batch_id);
       setBatchFiles(files);
@@ -90,19 +99,10 @@ function App() {
     navigate("/summary");
   }
 
-  function handleViewDetail() {
-    navigate("/detail");
-  }
-
   function handleViewErrors(batch) {
     if (batch) setCompletedResults(batch);
     navigate("/error");
   }
-
-  function handleGenerateReport() {
-    alert("오류리포트 생성 (실제 PDF/문서 생성은 백엔드 연동 후 구현 예정)");
-  }
-
   function handleBackToUpload() {
     navigate("/upload");
   }
@@ -128,6 +128,10 @@ function App() {
           />
           <Route path="/quality" element={<AIQualityScreen />} />
           <Route
+            path="/board"
+            element={<CaseBoardScreen onViewCase={handleViewCase} />}
+          />
+          <Route
             path="/upload"
             element={
               <UploadScreen
@@ -150,16 +154,11 @@ function App() {
             }
           />
           <Route
-            path="/board"
-            element={<CaseBoardScreen onViewCase={handleViewCase} />}
-          />
-          <Route
             path="/error"
             element={
               <ErrorScreen
                 batch={completedResults}
                 files={batchFiles}
-                onGenerateReport={handleGenerateReport}
                 onBackToUpload={handleBackToUpload}
               />
             }
@@ -169,10 +168,7 @@ function App() {
             element={
               <SummaryScreen
                 results={completedResults}
-                files={batchFiles}
                 onNewAnalysis={handleNewAnalysis}
-                onViewDetail={handleViewDetail}
-                onViewErrorReport={handleViewErrors}
               />
             }
           />

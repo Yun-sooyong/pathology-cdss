@@ -28,21 +28,24 @@ function StatusBadge({ status }) {
   return <Badge variant="secondary">{status}</Badge>;
 }
 
-export default function SummaryScreen({
-  results,
-  onNewAnalysis,
-  onViewErrorReport,
-}) {
-  const hasRealResults = results && results.length > 0 && results.some((r) => r.stil_value != null);
+export default function SummaryScreen({ results, onNewAnalysis }) {
+  const hasRealResults =
+    results && results.length > 0 && results.some((r) => r.stil_value != null);
 
   const slides = hasRealResults
     ? results.map((r) => {
         const report = r.medgemma_report;
         const rawStil = r.stil_value ?? report?.stil_ratio;
-        const stil = rawStil != null ? Math.round(rawStil) : null;  // 이미 24.31처럼 %값 그대로 옴, *100 불필요
+        const stil = rawStil != null ? Math.round(rawStil) : null; // 이미 24.31처럼 %값 그대로 옴, *100 불필요
         const abstain = report?.uncertainty?.abstain;
-        const status = abstain === true ? "기권" : abstain === false ? "자동" : r.status;
-        return { name: r.gcs_image_path?.split("/").pop() ?? r.job_id, stil, status, raw: r };
+        const status =
+          abstain === true ? "기권" : abstain === false ? "자동" : r.status;
+        return {
+          name: r.gcs_image_path?.split("/").pop() ?? r.job_id,
+          stil,
+          status,
+          raw: r,
+        };
       })
     : [];
 
@@ -75,9 +78,6 @@ export default function SummaryScreen({
       <div className="mb-2 flex items-start justify-between">
         <h1 className="text-xl font-semibold">분석 결과 요약</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={onViewErrorReport}>
-            오류리포트
-          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -90,7 +90,6 @@ export default function SummaryScreen({
           </Button>
         </div>
       </div>
-
       {hasRealResults && (
         <div className="mb-6 text-xs text-muted-foreground">
           케이스 ID: {currentCaseId}
