@@ -1,0 +1,623 @@
+<mxfile host="app.diagrams.net" agent="cdss-project" pages="5">
+  <diagram name="1. 시퀀스 (발표용)" id="seq-simple">
+    <mxGraphModel dx="1321" dy="782" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="sp1" parent="1" style="text;html=1;fontSize=14;fontStyle=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#6c8ebf;rounded=1;arcSize=0;opacity=40;" value="" vertex="1">
+          <mxGeometry height="180" width="1250" x="30" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="sp3" parent="1" style="text;html=1;fontSize=14;fontStyle=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#82b366;rounded=1;arcSize=0;opacity=40;" value="" vertex="1">
+          <mxGeometry height="90" width="1250" x="30" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="sp2" parent="1" style="text;html=1;fontSize=14;fontStyle=1;align=center;verticalAlign=middle;fillColor=light-dark(#FFBF8E,#4F2928);strokeColor=#b85450;rounded=1;opacity=40;arcSize=0;" value="" vertex="1">
+          <mxGeometry height="250" width="1250" x="30" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="sTitle" parent="1" style="text;html=1;fontSize=26;fontStyle=1;align=left;verticalAlign=middle;" value="처리 흐름" vertex="1">
+          <mxGeometry height="36" width="400" x="60" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="sl1" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;strokeWidth=3;" value="프론트엔드" vertex="1">
+          <mxGeometry height="600" width="160" x="60" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sl2" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=14;strokeWidth=3;" value="Django API" vertex="1">
+          <mxGeometry height="600" width="160" x="300" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sl3" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=14;strokeWidth=3;" value="GCS 저장소" vertex="1">
+          <mxGeometry height="600" width="160" x="540" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sl4" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=14;strokeWidth=3;" value="워커" vertex="1">
+          <mxGeometry height="600" width="160" x="780" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sl5" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;strokeWidth=3;" value="GPU 추론 서버" vertex="1">
+          <mxGeometry height="600" width="180" x="1020" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sm1" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=2;" value="① 업로드 요청 (이미지 N장)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="160" as="sourcePoint" />
+            <mxPoint x="380" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm2" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=13;" value="② 업로드 주소 발급">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="380" y="210" as="sourcePoint" />
+            <mxPoint x="140" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm3" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=3;strokeColor=#d79b00;" value="③ 이미지 직접 업로드">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="265" as="sourcePoint" />
+            <mxPoint x="620" y="265" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm4" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=2;" value="④ 분석 시작">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="315" as="sourcePoint" />
+            <mxPoint x="380" y="315" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm5" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=2;strokeColor=#b85450;" value="⑤ 작업 전달  (Cloud Tasks 큐)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="380" y="370" as="sourcePoint" />
+            <mxPoint x="860" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm6" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;" value="⑥ 원본 이미지 내려받기">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="420" as="sourcePoint" />
+            <mxPoint x="620" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm7" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=3;strokeColor=#9673a6;" value="⑦ 세그멘테이션 추론">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="470" as="sourcePoint" />
+            <mxPoint x="1110" y="470" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm8" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;edgeStyle=orthogonalEdgeStyle;fontSize=13;align=left;" value="⑧ sTIL · 신뢰구간 계산">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="940" y="500" />
+              <mxPoint x="940" y="530" />
+            </Array>
+            <mxPoint x="860" y="500" as="sourcePoint" />
+            <mxPoint x="860" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm9" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=3;strokeColor=#9673a6;" value="⑨ 판독 보고서 생성">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="565" as="sourcePoint" />
+            <mxPoint x="1110" y="565" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm10" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=2;strokeColor=#82b366;" value="⑩ 결과 기록">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="615" as="sourcePoint" />
+            <mxPoint x="380" y="615" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sm11" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=13;strokeWidth=2;" value="⑪ 결과 조회">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="665" as="sourcePoint" />
+            <mxPoint x="380" y="665" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sNote1" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=8;" value="이미지가 최대 141MB라 서버를 거치지 않고&#xa;저장소에 바로 올린다" vertex="1">
+          <mxGeometry height="45" width="280" x="470" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="sNote2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=8;" value="GPU가 필요 없는 작업(내려받기·분할·계산)은&#xa;워커가 맡아 GPU 사용 시간을 줄인다" vertex="1">
+          <mxGeometry height="45" width="290" x="550" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="sFoot" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#666666;" value="※ 자세한 API·파라미터는 &lt;b&gt;시퀀스 (상세)&lt;/b&gt; 탭 참고" vertex="1">
+          <mxGeometry height="24" width="500" x="60" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="I7cR9YKNDz2ehN3Rjpmz-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;opacity=0;" value="업로드" vertex="1">
+          <mxGeometry height="30" width="70" x="1210" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="I7cR9YKNDz2ehN3Rjpmz-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;opacity=0;" value="&lt;font style=&quot;font-size: 15px;&quot;&gt;조회&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="70" x="1210" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="I7cR9YKNDz2ehN3Rjpmz-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;opacity=0;" value="추론" vertex="1">
+          <mxGeometry height="30" width="70" x="1210" y="330" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="5. 시퀀스 (상세·참고용)" id="seq-01">
+    <mxGraphModel dx="1887" dy="1117" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1150" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="seqTitle" parent="1" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" value="BCSS CDSS — 전체 처리 시퀀스 (업로드 → 추론 → 조회)" vertex="1">
+          <mxGeometry height="30" width="800" x="40" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" value="사용자" vertex="1">
+          <mxGeometry height="1010" width="130" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" value="프론트엔드&#xa;(React, Vercel)" vertex="1">
+          <mxGeometry height="1010" width="130" x="210" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" value="Django API&#xa;bcss-api (서울)" vertex="1">
+          <mxGeometry height="1010" width="130" x="380" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l4" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" value="GCS 버킷&#xa;uploads / results" vertex="1">
+          <mxGeometry height="1010" width="130" x="550" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" value="Cloud Tasks&#xa;inference-queue" vertex="1">
+          <mxGeometry height="1010" width="130" x="720" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l6" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" value="워커&#xa;cdss-worker (CPU)" vertex="1">
+          <mxGeometry height="1010" width="130" x="890" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l7" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" value="GPU 서비스&#xa;segmentation-mosec&#xa;(싱가포르, L4)" vertex="1">
+          <mxGeometry height="1010" width="150" x="1060" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ph1" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=left;fillColor=#dae8fc;strokeColor=#6c8ebf;rounded=1;" value="업로드 단계" vertex="1">
+          <mxGeometry height="240" width="130" x="1240" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ph2" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=left;fillColor=#f8cecc;strokeColor=#b85450;rounded=1;" value="추론 단계" vertex="1">
+          <mxGeometry height="540" width="130" x="1240" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ph3" parent="1" style="text;html=1;fontSize=13;fontStyle=1;align=left;fillColor=#d5e8d4;strokeColor=#82b366;rounded=1;" value="조회 단계" vertex="1">
+          <mxGeometry height="90" width="130" x="1240" y="950" as="geometry" />
+        </mxCell>
+        <mxCell id="m1" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="① 이미지 1~15장 선택 + 모델 선택">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="105" y="130" as="sourcePoint" />
+            <mxPoint x="275" y="130" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m2" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="② POST /api/batches  {model_name, files[]}">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="172" as="sourcePoint" />
+            <mxPoint x="445" y="172" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m3" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;edgeStyle=orthogonalEdgeStyle;fontSize=10;align=left;" value="Batch 1개 + Job N개 생성 (status=waiting)&#xa;→ Cloud SQL 저장 / 서명 URL 발급">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="200" />
+              <mxPoint x="520" y="234" />
+            </Array>
+            <mxPoint x="445" y="200" as="sourcePoint" />
+            <mxPoint x="445" y="234" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m4" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="③ batch_id + uploads[{job_id, upload_url}]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="262" as="sourcePoint" />
+            <mxPoint x="275" y="262" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m5" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;strokeWidth=2;strokeColor=#d79b00;" value="④ PUT 파일 직접 업로드 (Django 안 거침 → 용량 제한 없음)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="304" as="sourcePoint" />
+            <mxPoint x="615" y="304" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m6" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="200 OK  (실측 141MB → 3.6초)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="615" y="346" as="sourcePoint" />
+            <mxPoint x="275" y="346" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m7" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑤ POST /api/batches/{id}/start  {uploaded_job_ids}">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="388" as="sourcePoint" />
+            <mxPoint x="445" y="388" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m8" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑥ 태스크 등록 (Admin API :run + JOB_PAYLOAD)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="430" as="sourcePoint" />
+            <mxPoint x="785" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m9" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="enqueued: n">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="472" as="sourcePoint" />
+            <mxPoint x="275" y="472" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m10" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑦ Job 실행 트리거 (실패 시 자동 재시도)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="785" y="514" as="sourcePoint" />
+            <mxPoint x="955" y="514" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m11" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑧ 원본 이미지 다운로드">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="556" as="sourcePoint" />
+            <mxPoint x="615" y="556" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m12" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;edgeStyle=orthogonalEdgeStyle;fontSize=10;align=left;" value="⑨ 512×512 타일 분할&#xa;(Cloud Run 32MB 제한 회피)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="584" />
+              <mxPoint x="1020" y="616" />
+            </Array>
+            <mxPoint x="955" y="584" as="sourcePoint" />
+            <mxPoint x="955" y="616" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m13" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;strokeWidth=2;strokeColor=#9673a6;" value="⑩ POST /inference  (타일마다, msgpack + ID 토큰)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="646" as="sourcePoint" />
+            <mxPoint x="1125" y="646" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m14" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="masks × MC Dropout 25장  (실측 7.6초/타일)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1125" y="688" as="sourcePoint" />
+            <mxPoint x="955" y="688" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m15" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;edgeStyle=orthogonalEdgeStyle;fontSize=10;align=left;" value="⑪ mc_stack 재조립 → sTIL 계산&#xa;+ Conformal 예측구간 / 판정유보">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="716" />
+              <mxPoint x="1020" y="750" />
+            </Array>
+            <mxPoint x="955" y="716" as="sourcePoint" />
+            <mxPoint x="955" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m16" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;strokeColor=#82b366;strokeWidth=2;" value="⑫ PATCH /api/jobs/{id}/  {status: sTIL 완료, stil_value, cp_value}">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="780" as="sourcePoint" />
+            <mxPoint x="445" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m17" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑬ POST /medgemma  (세그 이미지 + 수치)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="822" as="sourcePoint" />
+            <mxPoint x="1125" y="822" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m18" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="판독 보고서 JSON">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1125" y="864" as="sourcePoint" />
+            <mxPoint x="955" y="864" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m19" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑭ 결과 이미지 업로드 (results/)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="906" as="sourcePoint" />
+            <mxPoint x="615" y="906" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m20" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;strokeColor=#82b366;strokeWidth=2;" value="⑮ PATCH /api/jobs/{id}/  {status: 완료, medgemma_report}">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="955" y="948" as="sourcePoint" />
+            <mxPoint x="445" y="948" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m21" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;fontSize=11;" value="⑯ GET /api/result/{batch_id}   (4초 간격 폴링)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="990" as="sourcePoint" />
+            <mxPoint x="445" y="990" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m22" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;fontSize=11;" value="total / done / error + jobs[]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="1032" as="sourcePoint" />
+            <mxPoint x="275" y="1032" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="seqNote" parent="1" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=8;" value="※ ⑩~⑮ 는 워커가 담당 (현재 미배포 — 파이프라인 병목)&#xa;※ 파일은 Django를 거치지 않는다 (Cloud Run 요청 32MB 제한)" vertex="1">
+          <mxGeometry height="46" width="560" x="40" y="1085" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="2. ERD" id="erd-01">
+    <mxGraphModel dx="1000" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="erdTitle" value="데이터 모델 (ERD) — Cloud SQL PostgreSQL 18" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="batch" value="batches  (묶음 = 업로드 1회)" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="330" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" value="🔑 id : UUID  (PK)" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="batch">
+          <mxGeometry y="34" width="330" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" value="model_name : varchar(50)" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="batch">
+          <mxGeometry y="64" width="330" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b3" value="created_at : timestamptz" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="batch">
+          <mxGeometry y="94" width="330" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b4" value="updated_at : timestamptz" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="batch">
+          <mxGeometry y="124" width="330" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="calc" value="계산 속성 (컬럼 아님 — 조회 시 Job을 세서 산출)&#xa;&#xa;total          = jobs.count()&#xa;done_count     = jobs.filter(status=done).count()&#xa;error_count    = jobs.filter(status=error).count()&#xa;status         = 미완료 Job이 있으면 processing, 없으면 done&#xa;&#xa;※ 카운터를 저장하지 않는 이유: 워커가 동시에 여러 Job을&#xa;   갱신할 때 값이 어긋날 수 있어서, 셀 때마다 계산하면 항상 정확" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="270" width="330" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="job" value="jobs  (이미지 1장 = 작업 1건)" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="90" width="420" height="394" as="geometry" />
+        </mxCell>
+        <mxCell id="j1" value="🔑 id : UUID  (PK)" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="34" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j2" value="🔗 batch_id : UUID  (FK → batches.id, CASCADE)" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;fillColor=#f5f5f5;" vertex="1" parent="job">
+          <mxGeometry y="64" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j3" value="gcs_image_path : varchar(500)      원본 이미지" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="94" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j4" value="model_name : varchar(50)  [choices]" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="124" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j5" value="⚡ status : varchar(20)  [index]" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;fillColor=#ffe6cc;" vertex="1" parent="job">
+          <mxGeometry y="154" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j6" value="stil_value : float  (nullable)          sTIL 비율" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="184" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j7" value="conformal_prediction_value : jsonb      신뢰구간" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="214" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j8" value="gcs_result_path : varchar(500)      세그 결과 이미지" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="244" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j9" value="medgemma_report : jsonb            판독 보고서" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="274" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j10" value="error_message : text  (nullable)" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="304" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j11" value="created_at : timestamptz" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="334" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j12" value="updated_at : timestamptz" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="job">
+          <mxGeometry y="364" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="rel" value="1 : N   (1~15장)" style="edgeStyle=entityRelationEdgeStyle;html=1;endArrow=ERoneToMany;startArrow=ERmandOne;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=12;fontStyle=1;" edge="1" parent="1" source="batch" target="job">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="statusBox" value="status 상태 전이 (키 / 화면 라벨)" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="580" y="520" width="420" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="waiting      대기          큐 등록 직후" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="statusBox">
+          <mxGeometry y="30" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="processing   진행중        워커가 추론 중" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="statusBox">
+          <mxGeometry y="60" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="stil_done    sTIL 완료     sTIL·구간 산출, 리포트 대기" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="statusBox">
+          <mxGeometry y="90" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="done         완료          MedGemma 리포트까지 완료" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="statusBox">
+          <mxGeometry y="120" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" value="error        오류          업로드/큐/추론 중 실패" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=8;overflow=hidden;whiteSpace=wrap;fillColor=#f8cecc;" vertex="1" parent="statusBox">
+          <mxGeometry y="150" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="erdNote" value="설계 메모&#xa;&#xa;• PK를 순차 정수 대신 UUID로 — URL(/jobs/1)로 남의 작업을 추측하지 못하게&#xa;• 결과 필드는 전부 nullable — 추론 전에는 값이 없음&#xa;• status에 인덱스 — 목록 조회·필터에 자주 쓰임&#xa;• 워커는 DB에 직접 접속하지 않음 — 쓰기 경로는 Django REST API 하나뿐&#xa;• model_name choices: attention_unet_v1 만 허용&#xa;  (unet_v1은 conformal 보정상수 q가 없어 제외)" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="470" width="460" height="150" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="3. 전체 아키텍처" id="arch-01">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="archTitle" value="전체 아키텍처 — BCSS CDSS" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="16" width="600" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="zUser" value="사용자 환경" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;fontStyle=1;fontSize=13;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="230" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="nUser" value="👤 사용자&#xa;(브라우저)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="105" width="170" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="nFE" value="프론트엔드 (Vercel)&#xa;React + Vite&#xa;ccdss-project.vercel.app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="180" width="170" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="zSeoul" value="GCP  asia-northeast3 (서울)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="330" y="70" width="520" height="600" as="geometry" />
+        </mxCell>
+        <mxCell id="nDjango" value="Django REST API&#xa;bcss-api  (Cloud Run)&#xa;&#xa;업로드 중개 · 상태 관리 · 작업 등록 · 결과 수집" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="360" y="110" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="nSQL" value="🗄 Cloud SQL&#xa;PostgreSQL 18&#xa;bcss-cdss-db" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=12;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="105" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="nGCS" value="🪣 GCS  model-platform-502402-data&#xa;uploads/  원본 이미지&#xa;results/  세그 결과 이미지" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="360" y="240" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="nModels" value="🪣 GCS  ...-models&#xa;ONNX 가중치" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="240" width="170" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="nTasks" value="⏱ Cloud Tasks&#xa;inference-queue&#xa;실패 시 자동 재시도" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="360" y="360" width="240" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="nWorker" value="⚙️ 워커  cdss-worker&#xa;Cloud Run Job (CPU)&#xa;&#xa;다운로드 → 타일 분할 → 추론 요청 → 재조립&#xa;→ sTIL·Conformal 계산 → 결과 기록&#xa;&#xa;❌ 미배포 (현재 병목)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="470" width="450" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="zSg" value="GCP  asia-southeast1 (싱가포르) — Cloud Run GPU 지원 리전" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;fontSize=13;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="900" y="70" width="360" height="600" as="geometry" />
+        </mxCell>
+        <mxCell id="nGPU" value="segmentation-mosec  (Cloud Run)&#xa;NVIDIA L4 GPU × 1 · 4 CPU / 16Gi&#xa;min-instances 0 → 유휴 시 과금 없음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="930" y="110" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="nSeg" value="/inference&#xa;세그멘테이션 (mosec)&#xa;&#xa;Preprocess → Inference&#xa;MC Dropout 25회&#xa;TILE_SIZE 512&#xa;&#xa;실측 7.6초 / 타일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="930" y="215" width="140" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="nMG" value="/medgemma&#xa;판독 보고서&#xa;&#xa;medgemma-4b-it&#xa;BF16 약 8GB&#xa;&#xa;❌ 2단계 예정" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="215" width="140" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="gpuNote" value="mosec은 한 서버에 여러 라우트를&#xa;등록할 수 있어, GPU 서비스를&#xa;1개로 유지한다 (비용·할당량 절감).&#xa;L4 24GB VRAM에 두 모델이 함께 올라감." style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="930" y="420" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="① 배치 생성 / start / 결과 조회" style="html=1;rounded=0;endArrow=block;startArrow=block;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="nFE" target="nDjango">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="② 이미지 직접 업로드&#xa;(용량 제한 없음)" style="html=1;rounded=0;endArrow=block;strokeColor=#d79b00;strokeWidth=3;fontSize=10;exitX=1;exitY=0.75;entryX=0;entryY=0.5;" edge="1" parent="1" source="nFE" target="nGCS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="Job 상태 저장" style="html=1;rounded=0;endArrow=block;startArrow=block;strokeColor=#82b366;fontSize=10;" edge="1" parent="1" source="nDjango" target="nSQL">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="③ 서명 URL 발급" style="html=1;rounded=0;endArrow=block;dashed=1;strokeColor=#d79b00;fontSize=10;" edge="1" parent="1" source="nDjango" target="nGCS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="④ 작업 등록" style="html=1;rounded=0;endArrow=block;strokeColor=#82b366;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="nGCS" target="nTasks">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="330" as="sourcePoint" />
+            <mxPoint x="400" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" value="⑤ Job 실행 트리거&#xa;(Admin API :run)" style="html=1;rounded=0;endArrow=block;strokeColor=#b85450;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="nTasks" target="nWorker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="⑥ 원본 다운로드 / 결과 업로드" style="html=1;rounded=0;endArrow=block;startArrow=block;strokeColor=#d79b00;fontSize=10;exitX=0;exitY=0.3;entryX=0;entryY=1;" edge="1" parent="1" source="nWorker" target="nGCS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="⑦ 타일 추론 요청 (msgpack + ID 토큰)" style="html=1;rounded=0;endArrow=block;startArrow=block;strokeColor=#9673a6;strokeWidth=3;fontSize=10;exitX=1;exitY=0.3;entryX=0.5;entryY=1;" edge="1" parent="1" source="nWorker" target="nSeg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="⑧ 리포트 요청" style="html=1;rounded=0;endArrow=block;startArrow=block;strokeColor=#9673a6;dashed=1;fontSize=10;exitX=1;exitY=0.7;entryX=0.5;entryY=1;" edge="1" parent="1" source="nWorker" target="nMG">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="⑨ PATCH 결과 기록" style="html=1;rounded=0;endArrow=block;strokeColor=#82b366;strokeWidth=2;fontSize=10;exitX=0;exitY=0.5;entryX=0;entryY=1;" edge="1" parent="1" source="nWorker" target="nDjango">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="345" y="545" />
+              <mxPoint x="345" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="가중치 로드" style="html=1;rounded=0;endArrow=block;dashed=1;strokeColor=#d79b00;fontSize=10;" edge="1" parent="1" source="nModels" target="nSeg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="archNote" value="리전 분리 이유&#xa;&#xa;• Cloud Run GPU는 서울·도쿄를 지원하지 않는다 → 아시아에서는 싱가포르가 유일&#xa;• Django·DB·큐·워커는 서울에 두고, GPU 추론만 싱가포르로 분리&#xa;• GPU는 인스턴스 생존 시간만큼 과금되므로, 다운로드·타일링·통신 같은&#xa;  GPU가 필요 없는 작업은 CPU 워커가 맡는다" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="620" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="archLegend" value="범례&#xa;&#xa;━━ 실선 : 구현·검증 완료&#xa;┅┅ 점선 : 미구현 / 예정&#xa;🟧 주황 : 저장소·큐&#xa;🟪 보라 : GPU 추론&#xa;🟥 빨강 : 미배포" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="700" y="700" width="230" height="110" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="4. 프론트엔드 화면 플로우" id="fe-01">
+    <mxGraphModel dx="1000" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="feTitle" value="프론트엔드 화면 플로우" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="16" width="500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f0" value="시작" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="70" width="110" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="📊 대시보드&#xa;DashboardScreen&#xa;&#xa;최근 케이스 목록&#xa;확인 필요 케이스" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="150" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="📤 업로드&#xa;UploadScreen&#xa;&#xa;이미지 1~15장 선택&#xa;모델 선택 (attention_unet_v1)&#xa;예상 소요 시간 표시" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="300" width="170" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="① POST /api/batches&#xa;서명 URL 발급" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="360" y="310" width="170" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="② GCS 직접 PUT&#xa;(파일별 진행률 표시)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="360" y="375" width="170" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="fd1" value="업로드 실패한&#xa;파일이 있나?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="370" y="450" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="재시도 (1~2회)&#xa;서명 URL 유효기간 60분 내&#xa;재사용 가능" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="455" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" value="③ POST /batches/{id}/start&#xa;{uploaded_job_ids: 성공분만}" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="360" y="575" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="f7" value="⏳ 로딩 / 진행상황&#xa;LoadingScreen&#xa;&#xa;4초 간격 폴링&#xa;GET /api/result/{batch_id}&#xa;총 n장 / 완료 nn / 에러 m" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="565" width="170" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="fd2" value="모든 Job이&#xa;끝났나?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="105" y="720" width="140" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="f8" value="📋 요약&#xa;SummaryScreen&#xa;&#xa;배치 결과 리스트&#xa;케이스별 sTIL / 기권 여부" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="710" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="f9" value="🔍 상세&#xa;DetailScreen&#xa;&#xa;GET /api/jobs/{job_id}&#xa;세그 결과 이미지&#xa;sTIL + 예측구간 막대&#xa;기권 뱃지 · 판독 보고서" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="700" width="190" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="f10" value="⚠️ 오류&#xa;ErrorScreen&#xa;&#xa;실패한 케이스 목록&#xa;오류 리포트" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;verticalAlign=top;spacingTop=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="870" y="710" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="fe1" style="html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="f0" target="f1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe2" value="+ 새 분석 시작" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="f1" target="f2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe3" value="분석 시작" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="f2" target="f3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe4" style="html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="f3" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe5" style="html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="f4" target="fd1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe6" value="예" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="fd1" target="f5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe7" value="재시도 후 재확인" style="html=1;rounded=0;endArrow=block;dashed=1;fontSize=10;exitX=0.5;exitY=0;entryX=1;entryY=0.25;" edge="1" parent="1" source="f5" target="fd1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="690" y="430" />
+              <mxPoint x="540" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fe8" value="아니오 (또는 성공분만 진행)" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="fd1" target="f6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe9" style="html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="f6" target="f7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe10" style="html=1;rounded=0;endArrow=block;" edge="1" parent="1" source="f7" target="fd2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe11" value="아니오 — 4초 후 재조회" style="html=1;rounded=0;endArrow=block;dashed=1;fontSize=10;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="fd2" target="f7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="50" y="760" />
+              <mxPoint x="50" y="625" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fe12" value="예" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="fd2" target="f8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe13" value="항목 클릭" style="html=1;rounded=0;endArrow=block;fontSize=10;" edge="1" parent="1" source="f8" target="f9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe14" value="에러 건 확인" style="html=1;rounded=0;endArrow=block;fontSize=10;dashed=1;" edge="1" parent="1" source="f9" target="f10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fe15" value="완료 후 대시보드로" style="html=1;rounded=0;endArrow=block;dashed=1;fontSize=10;exitX=0.5;exitY=0;entryX=1;entryY=0.5;" edge="1" parent="1" source="f8" target="f1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="feNote" value="업로드가 3단계인 이유&#xa;&#xa;병리 이미지는 최대 141MB인데 Cloud Run은 요청 32MB 제한이 있다.&#xa;그래서 Django는 업로드 권한(서명 URL)만 발급하고,&#xa;파일은 브라우저가 GCS로 직접 보낸다.&#xa;&#xa;부수 효과: 파일별 업로드 진행률 표시가 가능해진다." style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="600" y="130" width="430" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="feNote2" value="부분 실패 처리&#xa;&#xa;15장 중 1장이 실패했다고 전체를 다시 올리는 것은&#xa;파일이 커서 부담이 크다. 그래서 성공한 job_id만&#xa;start에 전달하면, 나머지는 error로 표시되고&#xa;성공분만 추론이 진행된다.&#xa;(요약 화면의 에러 건수에 반영됨)" style="text;html=1;align=left;verticalAlign=top;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;rounded=1;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="600" y="280" width="430" height="130" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

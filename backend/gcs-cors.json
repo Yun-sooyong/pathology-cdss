@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://ccdss-project.vercel.app",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
+    "method": ["PUT", "GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]

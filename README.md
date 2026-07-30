@@ -1,8 +1,9 @@
-# BCSS CDSS — 유방암 병리 이미지 CDSS 프로젝트
+# Welcome to GitHub Desktop!
 
-BCSS(Breast Cancer Semantic Segmentation) 데이터셋 기반 조직 세그멘테이션, TIL(종양침윤림프구) 비율 계산, Conformal Prediction 기반 판정 유보(deferral) 메커니즘을 제공하는 임상 의사결정 지원 시스템(CDSS)입니다.
+This is your README. READMEs are where you can communicate what your project is and how to use it.
 
-## 디렉토리 구조
+Write your name on line 6, save it, and then head back to GitHub Desktop.
+gmoo
 
 | 폴더 | 담당 | 내용 |
 | --- | --- | --- |
@@ -13,23 +14,7 @@ BCSS(Breast Cancer Semantic Segmentation) 데이터셋 기반 조직 세그멘�
 | `worker/` | 박검모 | Cloud Tasks 워커 — Conformal Prediction, sTIL 비율 계산, 판독 보고서 조립 |
 | `frontend/` | 정다희 | React + Vite 프론트엔드 |
 | `docs/` | 공통 | API 스펙, 공통 인터페이스 문서 (수정 전 팀 전체 공지 필수) |
+## Claude Code 오케스트레이션 세팅
 
-## 브랜치 전략
-
-- `main` 브랜치는 보호(protected) — 직접 push 금지
-- 각자 `feature/이름` 브랜치에서 작업 후 PR로 병합 (예: `feature/sooyong`, `feature/gummo`, `feature/ilun`)
-- PR은 원칙적으로 **본인 담당 폴더만** 수정 — merge 충돌 최소화
-- `docs/` 하위 공통 파일을 수정해야 하는 PR은 제목에 명시하고 팀 채널(`medi_ai_group_3@googlegroups.com`)에 공지
-
-## 공통 인터페이스
-
-파트 간 연동 규격(Job 테이블 스키마, API 요청/응답 형식, medgemma_report 필드 등)은 [`docs/api-spec.md`](./docs/api-spec.md)를 기준으로 한다. 변경 시 반드시 팀 전체에 공지.
-
-## 리전
-
-- Django, Cloud Tasks, 워커, Cloud SQL → 서울 (`asia-northeast3`)
-- 세그멘테이션 Mosec, MedGemma Mosec (GPU) → 도쿄 (`asia-northeast1`) — Cloud Run GPU 미지원 리전이라 분리
-
-## GCP 프로젝트
-
-`model-platform-502402`
+이 레포는 Claude Code 워크플로우/서브에이전트/Codex 플러그인 세팅의 원본입니다.
+새 컴퓨터 세팅 방법은 [SETUP.md](SETUP.md) 참고 — 클론 후 `setup.ps1`(Windows) 또는 `setup.sh`(macOS/Linux) 실행.
