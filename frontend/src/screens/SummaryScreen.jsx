@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,35 +9,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
-
-const MOCK_CASE_LIST = [
-  { id: "C-0231", date: "2026-07-21" },
-  { id: "C-0198", date: "2026-07-18" },
-  { id: "C-0177", date: "2026-07-12" },
-];
+import { getCases } from "../api";
 
 const STATIC_META = {
   imageSize: "2048 × 2048px",
   format: "TIFF",
   stain: "H&E",
 };
-
-const FALLBACK_FILES = [
-  { name: "slide_0231.tiff" },
-  { name: "slide_0232.tiff" },
-];
-
-function mockStilFor(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) % 100;
-  }
-  return hash;
-}
-
-function statusFor(stil) {
-  return Math.abs(stil - 50) <= 10 ? "기권" : "자동";
-}
 
 function StatusBadge({ status }) {
   if (status === "기권") {
@@ -52,40 +30,41 @@ function StatusBadge({ status }) {
 
 export default function SummaryScreen({
   results,
-  files,
   onNewAnalysis,
-  onViewDetail,
   onViewErrorReport,
 }) {
   const hasRealResults = results && results.length > 0 && results.some((r) => r.stil_value != null);
-  const effectiveFiles = files && files.length > 0 ? files : FALLBACK_FILES;
 
- const slides = hasRealResults
-  ? results.map((r) => {
-      const report = r.medgemma_report;
-      const rawStil = r.stil_value ?? report?.stil_ratio;
-      const stil = rawStil != null ? Math.round(rawStil) : null;  // 이미 24.31처럼 %값 그대로 옴, *100 불필요
-      const abstain = report?.uncertainty?.abstain;
-      const status = abstain === true ? "기권" : abstain === false ? "자동" : r.status;
-      return { name: r.gcs_image_path?.split("/").pop() ?? r.job_id, stil, status, raw: r };
-    })
-    : effectiveFiles.map((f) => {
-        const stil = mockStilFor(f.name);
-        return { name: f.name, stil, status: statusFor(stil), raw: null };
-      });
+  const slides = hasRealResults
+    ? results.map((r) => {
+        const report = r.medgemma_report;
+        const rawStil = r.stil_value ?? report?.stil_ratio;
+        const stil = rawStil != null ? Math.round(rawStil) : null;  // 이미 24.31처럼 %값 그대로 옴, *100 불필요
+        const abstain = report?.uncertainty?.abstain;
+        const status = abstain === true ? "기권" : abstain === false ? "자동" : r.status;
+        return { name: r.gcs_image_path?.split("/").pop() ?? r.job_id, stil, status, raw: r };
+      })
+    : [];
 
   const [selectedSlide, setSelectedSlide] = useState(slides[0]?.name ?? null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [recentCases, setRecentCases] = useState([]);
+
+  useEffect(() => {
+    getCases({ limit: 5 })
+      .then((data) => setRecentCases(data.results ?? []))
+      .catch((err) => console.error("최근 케이스 목록 조회 실패:", err));
+  }, []);
 
   const current = slides.find((s) => s.name === selectedSlide);
-  const currentModel = current?.raw?.model_name ?? "unet_v1";
-  const currentAnalyzedAt = current?.raw?.updated_at ?? "2026-07-21 09:14";
-  const currentCaseId = current?.raw?.id ?? "C-0231";
-const navigate = useNavigate();
+  const currentModel = current?.raw?.model_name ?? "-";
+  const currentAnalyzedAt = current?.raw?.updated_at ?? "-";
+  const currentCaseId = current?.raw?.job_id ?? current?.raw?.id ?? "-";
+  const navigate = useNavigate();
 
-function handleGoToDetail() {
-  navigate("/detail", { state: { job: current.raw } });
-}
+  function handleGoToDetail() {
+    navigate("/detail", { state: { job: current.raw } });
+  }
   return (
     <div>
       <div className="mb-2.5 text-xs text-muted-foreground">
@@ -112,9 +91,11 @@ function handleGoToDetail() {
         </div>
       </div>
 
-      <div className="mb-6 text-xs text-muted-foreground">
-        케이스 ID: {currentCaseId} {!hasRealResults && "(예시 데이터)"}
-      </div>
+      {hasRealResults && (
+        <div className="mb-6 text-xs text-muted-foreground">
+          케이스 ID: {currentCaseId}
+        </div>
+      )}
 
       {slides.length === 0 ? (
         <Card>
@@ -177,21 +158,26 @@ function handleGoToDetail() {
             <div className="grid grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">케이스 목록</CardTitle>
-                  <div className="text-[10px] text-muted-foreground">
-                    (전체 목록 조회 API 없음 — 당분간 예시)
-                  </div>
+                  <CardTitle className="text-sm">최근 케이스 목록</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {MOCK_CASE_LIST.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex justify-between border-b border-border py-1.5 text-xs last:border-0"
-                    >
-                      <span>{c.id}</span>
-                      <span className="text-muted-foreground">{c.date}</span>
+                  {recentCases.length === 0 ? (
+                    <div className="py-2 text-xs text-muted-foreground">
+                      최근 케이스가 없습니다.
                     </div>
-                  ))}
+                  ) : (
+                    recentCases.map((c) => (
+                      <div
+                        key={c.job_id}
+                        className="flex justify-between border-b border-border py-1.5 text-xs last:border-0"
+                      >
+                        <span>{c.job_id.slice(0, 8)}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(c.created_at).toLocaleDateString("ko-KR")}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
               <Card>
