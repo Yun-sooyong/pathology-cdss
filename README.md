@@ -8,9 +8,13 @@ Conformal Prediction으로 예측 구간을 붙이고, 구간이 판정 기준�
 
 | 항목 | 내용 |
 |---|---|
-| 기간 | 2026.07 |
+| 기간 | 2026.07.23 ~ 07.30 |
 | 인원 | 5명 |
 | 내 역할 | Django REST API(`backend/`), GCP 인프라(Cloud Run, Cloud SQL, Cloud Tasks, GCS) |
+
+![대시보드 화면](docs/screenshot.png)
+
+<sub>대시보드 화면입니다. 합성 케이스 12건으로 띄웠습니다.</sub>
 
 ## 핵심 가치
 
